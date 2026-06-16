@@ -14,16 +14,20 @@ export async function middleware(request: NextRequest) {
     }
 
     const authValue = basicAuth.split(' ')[1] ?? '';
-    const [user, pwd] = Buffer.from(authValue, 'base64').toString().split(':');
+    const decodedValue = atob(authValue);
+    const [user, pwd] = decodedValue.split(':');
 
     const validUser = process.env.BASIC_AUTH_USER;
     const validPassword = process.env.BASIC_AUTH_PASSWORD;
 
-    if (!validUser || !validPassword || user !== validUser || pwd !== validPassword) {
-      return new NextResponse('Auth required', {
-        status: 401,
-        headers: { 'WWW-Authenticate': 'Basic realm="Secure Area"' },
-      });
+    // If env vars are not set, allow access so we don't lock out the deployment
+    if (validUser && validPassword) {
+      if (user !== validUser || pwd !== validPassword) {
+        return new NextResponse('Auth required', {
+          status: 401,
+          headers: { 'WWW-Authenticate': 'Basic realm="Secure Area"' },
+        });
+      }
     }
   }
 
