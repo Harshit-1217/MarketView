@@ -227,34 +227,34 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
         if (ind.type === 'sma') {
           const smaData = calculateSMA(candles, ind.params.period || 9);
           if (smaData.length > 0) {
-            const series = chart.addSeries(LW.LineSeries, { color: ind.color, lineWidth: 1.5, title: ind.name });
-            series.setData(smaData);
+            const series = chart.addSeries(LW.LineSeries, { color: ind.color, lineWidth: 2, title: ind.name });
+            series.setData(smaData as any);
             indicatorSeriesMap.current.set(ind.id, [series]);
           }
         } else if (ind.type === 'ema') {
           const emaData = calculateEMA(candles, ind.params.period || 21);
           if (emaData.length > 0) {
-            const series = chart.addSeries(LW.LineSeries, { color: ind.color, lineWidth: 1.5, title: ind.name });
-            series.setData(emaData);
+            const series = chart.addSeries(LW.LineSeries, { color: ind.color, lineWidth: 2, title: ind.name });
+            series.setData(emaData as any);
             indicatorSeriesMap.current.set(ind.id, [series]);
           }
         } else if (ind.type === 'vwap') {
           const vwapData = calculateVWAP(candles);
           if (vwapData.length > 0) {
-            const series = chart.addSeries(LW.LineSeries, { color: ind.color, lineWidth: 1.5, title: ind.name });
-            series.setData(vwapData);
+            const series = chart.addSeries(LW.LineSeries, { color: ind.color, lineWidth: 2, title: ind.name });
+            series.setData(vwapData as any);
             indicatorSeriesMap.current.set(ind.id, [series]);
           }
         } else if (ind.type === 'bb') {
           const bbData = calculateBollingerBands(candles, ind.params.period || 20, ind.params.multiplier || 2);
           if (bbData.length > 0) {
             const upperSeries = chart.addSeries(LW.LineSeries, { color: ind.color, lineWidth: 1, lineStyle: LW.LineStyle.Dashed, title: 'BB Upper' });
-            const middleSeries = chart.addSeries(LW.LineSeries, { color: ind.color, lineWidth: 1.5, title: 'BB Middle' });
+            const middleSeries = chart.addSeries(LW.LineSeries, { color: ind.color, lineWidth: 2, title: 'BB Middle' });
             const lowerSeries = chart.addSeries(LW.LineSeries, { color: ind.color, lineWidth: 1, lineStyle: LW.LineStyle.Dashed, title: 'BB Lower' });
 
-            upperSeries.setData(bbData.map(d => ({ time: d.time, value: d.upper })));
-            middleSeries.setData(bbData.map(d => ({ time: d.time, value: d.middle })));
-            lowerSeries.setData(bbData.map(d => ({ time: d.time, value: d.lower })));
+            upperSeries.setData(bbData.map(d => ({ time: d.time, value: d.upper })) as any);
+            middleSeries.setData(bbData.map(d => ({ time: d.time, value: d.middle })) as any);
+            lowerSeries.setData(bbData.map(d => ({ time: d.time, value: d.lower })) as any);
 
             indicatorSeriesMap.current.set(ind.id, [upperSeries, middleSeries, lowerSeries]);
           }
@@ -275,17 +275,17 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
 
           const rsiSeries = rsiChart.addSeries(LW.LineSeries, {
             color: '#9b51e0',
-            lineWidth: 1.5,
+            lineWidth: 2,
             title: 'RSI',
           });
-          rsiSeries.setData(rsiData);
+          rsiSeries.setData(rsiData as any);
           rsiSeriesObj.current = rsiSeries;
 
           // Add overbought / oversold lines
-          const lineUpper = rsiChart.addSeries(LW.LineSeries, { color: '#f23645', lineWidth: 0.5, lineStyle: LW.LineStyle.Dashed });
-          const lineLower = rsiChart.addSeries(LW.LineSeries, { color: '#089981', lineWidth: 0.5, lineStyle: LW.LineStyle.Dashed });
-          lineUpper.setData(rsiData.map(d => ({ time: d.time, value: 70 })));
-          lineLower.setData(rsiData.map(d => ({ time: d.time, value: 30 })));
+          const lineUpper = rsiChart.addSeries(LW.LineSeries, { color: '#f23645', lineWidth: 1, lineStyle: LW.LineStyle.Dashed });
+          const lineLower = rsiChart.addSeries(LW.LineSeries, { color: '#089981', lineWidth: 1, lineStyle: LW.LineStyle.Dashed });
+          lineUpper.setData(rsiData.map(d => ({ time: d.time, value: 70 })) as any);
+          lineLower.setData(rsiData.map(d => ({ time: d.time, value: 30 })) as any);
 
           // Sync timescale
           chart.timeScale().subscribeVisibleLogicalRangeChange((range: any) => {
@@ -315,21 +315,21 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
           });
           macdChartObj.current = macdChart;
 
-          const macdLine = macdChart.addSeries(LW.LineSeries, { color: '#2f80ed', lineWidth: 1.5, title: 'MACD' });
-          const signalLine = macdChart.addSeries(LW.LineSeries, { color: '#f2994a', lineWidth: 1.5, title: 'Signal' });
+          const macdLine = macdChart.addSeries(LW.LineSeries, { color: '#2f80ed', lineWidth: 2, title: 'MACD' });
+          const signalLine = macdChart.addSeries(LW.LineSeries, { color: '#f2994a', lineWidth: 2, title: 'Signal' });
           const histLine = macdChart.addSeries(LW.HistogramSeries, {
             color: '#27ae60',
             title: 'Histogram',
           });
 
-          macdLine.setData(macdData.map(d => ({ time: d.time, value: d.macd })));
-          signalLine.setData(macdData.map(d => ({ time: d.time, value: d.signal })));
+          macdLine.setData(macdData.map(d => ({ time: d.time, value: d.macd })) as any);
+          signalLine.setData(macdData.map(d => ({ time: d.time, value: d.signal })) as any);
           histLine.setData(
             macdData.map(d => ({
               time: d.time,
               value: d.histogram,
               color: d.histogram >= 0 ? '#26a69a' : '#ef5350',
-            }))
+            })) as any
           );
 
           macdMacdSeriesObj.current = macdLine;
@@ -392,7 +392,7 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
           ctx.lineWidth = drawing.properties.width || 2;
 
           const points = drawing.points.map((pt) => {
-            const x = chart.timeScale().timeToCoordinate(pt.time);
+            const x = chart.timeScale().timeToCoordinate(pt.time as any);
             const y = mainSeries.priceToCoordinate(pt.price);
             return { x, y };
           });
@@ -451,17 +451,20 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
               const priceDiff = drawing.points[1].price - drawing.points[0].price;
 
               levels.forEach((lvl, idx) => {
-                const y = p1.y + diff * lvl;
+                const x1 = p1.x as number;
+                const y1 = p1.y as number;
+                const x2 = p2.x as number;
+                const y = y1 + diff * lvl;
                 ctx.strokeStyle = colors[idx];
                 ctx.beginPath();
-                ctx.moveTo(Math.min(p1.x, p2.x), y);
-                ctx.lineTo(Math.max(p1.x, p2.x), y);
+                ctx.moveTo(Math.min(x1, x2), y);
+                ctx.lineTo(Math.max(x1, x2), y);
                 ctx.stroke();
 
                 ctx.fillStyle = colors[idx];
                 ctx.font = '9px Arial';
                 const priceVal = (drawing.points[0].price + priceDiff * lvl).toFixed(2);
-                ctx.fillText(`Fib ${lvl} (${priceVal})`, Math.min(p1.x, p2.x) + 5, y - 4);
+                ctx.fillText(`Fib ${lvl} (${priceVal})`, Math.min(x1, x2) + 5, y - 4);
               });
             }
           } else if (drawing.type === 'text' && points.length >= 1) {
@@ -484,14 +487,14 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
           ctx.fillStyle = currentColor;
 
           const p1 = {
-            x: chart.timeScale().timeToCoordinate(drawingPoints[0].time),
+            x: chart.timeScale().timeToCoordinate(drawingPoints[0].time as any),
             y: mainSeries.priceToCoordinate(drawingPoints[0].price),
           };
 
           if (p1.x !== null && p1.y !== null) {
             if (activeTool === 'trend' && drawingPoints.length === 2) {
               const p2 = {
-                x: chart.timeScale().timeToCoordinate(drawingPoints[1].time),
+                x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
                 y: mainSeries.priceToCoordinate(drawingPoints[1].price),
               };
               if (p2.x !== null && p2.y !== null) {
@@ -502,7 +505,7 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
               }
             } else if (activeTool === 'rectangle' && drawingPoints.length === 2) {
               const p2 = {
-                x: chart.timeScale().timeToCoordinate(drawingPoints[1].time),
+                x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
                 y: mainSeries.priceToCoordinate(drawingPoints[1].price),
               };
               if (p2.x !== null && p2.y !== null) {
@@ -512,7 +515,7 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
               }
             } else if (activeTool === 'fib' && drawingPoints.length === 2) {
               const p2 = {
-                x: chart.timeScale().timeToCoordinate(drawingPoints[1].time),
+                x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
                 y: mainSeries.priceToCoordinate(drawingPoints[1].price),
               };
               if (p2.x !== null && p2.y !== null) {

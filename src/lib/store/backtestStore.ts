@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Candle } from '../binance/client';
+import { Candle } from '../market/client';
 
 export interface BacktestTrade {
   id: string;

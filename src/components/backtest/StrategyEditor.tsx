@@ -119,7 +119,7 @@ export default function StrategyEditor() {
         height: chartRef.current.clientHeight,
       });
 
-      const candleSeries = chart.addCandlestickSeries({
+      const candleSeries = chart.addSeries(LW.CandlestickSeries, {
         upColor: '#26a69a',
         downColor: '#ef5350',
         borderVisible: false,
@@ -129,7 +129,7 @@ export default function StrategyEditor() {
 
       // Show data only up to current index
       const slicedCandles = candles.slice(0, currentIndex + 1);
-      candleSeries.setData(slicedCandles);
+      candleSeries.setData(slicedCandles as any);
 
       // Add trade markers (entries/exits) on the replay chart
       const markers: any[] = [];
@@ -164,7 +164,7 @@ export default function StrategyEditor() {
         });
       }
 
-      candleSeries.setMarkers(markers.sort((a, b) => (a.time as number) - (b.time as number)));
+      (candleSeries as any).setMarkers(markers.sort((a, b) => (a.time as number) - (b.time as number)));
 
       // 2. Equity Curve Chart
       const equityChart = LW.createChart(equityChartRef.current, {
@@ -176,13 +176,13 @@ export default function StrategyEditor() {
         },
       });
 
-      const equitySeries = equityChart.addLineSeries({
+      const equitySeries = equityChart.addSeries(LW.LineSeries, {
         color: '#26a69a',
-        lineWidth: 2.5,
+        lineWidth: 2,
         title: 'Balance/Equity',
       });
 
-      equitySeries.setData(equityCurve);
+      equitySeries.setData(equityCurve as any);
 
       // Sync Scales
       chart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
@@ -204,8 +204,8 @@ export default function StrategyEditor() {
 
       return () => {
         window.removeEventListener('resize', handleResize);
-        chart.destroy();
-        equityChart.destroy();
+        chart.remove();
+        equityChart.remove();
       };
     });
   }, [candles, currentIndex, trades, activeTrade, equityCurve]);

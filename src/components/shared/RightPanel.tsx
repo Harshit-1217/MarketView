@@ -58,12 +58,12 @@ export default function RightPanel() {
 
     // Subscribe to all watchlist symbols
     symbols.forEach((sym) => {
-      marketManager.subscribe(sym, '1m', handleTick(sym));
+      marketManager?.subscribe(sym, '1m', handleTick(sym));
     });
 
     return () => {
       symbols.forEach((sym) => {
-        marketManager.unsubscribe(sym, '1m');
+        marketManager?.unsubscribe(sym, '1m');
       });
     };
   }, [symbols, checkAlerts]);

@@ -172,7 +172,7 @@ export const useAlertStore = create<AlertState>((set, get) => ({
         }
 
         // Show window alert
-        alert(`🚨 ALERT TRIGGERED!\n${alert.symbol} price crossed ${alert.condition} ${alert.value}`);
+        window.alert(`🚨 ALERT TRIGGERED!\n${alert.symbol} price crossed ${alert.condition} ${alert.value}`);
       }
 
       // Update local state: move to history

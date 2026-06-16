@@ -1,4 +1,4 @@
-import { Candle } from '../binance/client';
+import { Candle } from '../market/client';
 
 export interface SingleValuePoint {
   time: number;
