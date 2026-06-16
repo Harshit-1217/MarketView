@@ -37,8 +37,7 @@ export default function LoginPage() {
 
       if (data?.user) {
         setUser(data.user);
-        router.refresh();
-        router.push('/chart');
+        window.location.href = '/chart';
       }
     } catch (err) {
       console.error(err);
