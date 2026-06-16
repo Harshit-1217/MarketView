@@ -4,11 +4,11 @@ import { createClient } from '../supabase/client';
 
 interface AuthState {
   user: User | null;
-  profile: { username: string } | null;
+  profile: { username: string; is_approved?: boolean } | null;
   loading: boolean;
   initialized: boolean;
   setUser: (user: User | null) => void;
-  setProfile: (profile: { username: string } | null) => void;
+  setProfile: (profile: { username: string; is_approved?: boolean } | null) => void;
   setLoading: (loading: boolean) => void;
   initialize: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -36,7 +36,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         // Fetch profile
         const { data: profileData } = await supabase
           .from('profiles')
-          .select('username')
+          .select('username, is_approved')
           .eq('id', session.user.id)
           .single();
           
@@ -56,7 +56,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ user: session.user });
         const { data: profileData } = await supabase
           .from('profiles')
-          .select('username')
+          .select('username, is_approved')
           .eq('id', session.user.id)
           .single();
         if (profileData) {
