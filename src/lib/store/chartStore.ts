@@ -28,10 +28,10 @@ interface ChartState {
 }
 
 const DEFAULT_CHARTS: ChartConfig[] = [
-  { id: 'chart-0', symbol: 'BTCUSDT', timeframe: '1h', chartType: 'candlestick' },
-  { id: 'chart-1', symbol: 'ETHUSDT', timeframe: '1h', chartType: 'candlestick' },
-  { id: 'chart-2', symbol: 'SOLUSDT', timeframe: '1h', chartType: 'candlestick' },
-  { id: 'chart-3', symbol: 'BNBUSDT', timeframe: '1h', chartType: 'candlestick' },
+  { id: 'chart-0', symbol: 'RELIANCE.NS', timeframe: '1D', chartType: 'candlestick' },
+  { id: 'chart-1', symbol: 'TCS.NS', timeframe: '1D', chartType: 'candlestick' },
+  { id: 'chart-2', symbol: 'HDFCBANK.NS', timeframe: '1D', chartType: 'candlestick' },
+  { id: 'chart-3', symbol: 'INFY.NS', timeframe: '1D', chartType: 'candlestick' },
 ];
 
 export const useChartStore = create<ChartState>((set, get) => ({
@@ -55,7 +55,7 @@ export const useChartStore = create<ChartState>((set, get) => ({
     const targetChart = charts.find(c => c.id === id);
     if (!targetChart) return;
 
-    let updatedCharts = charts.map((c) => {
+    const updatedCharts = charts.map((c) => {
       if (c.id === id) {
         return { ...c, ...updates };
       }

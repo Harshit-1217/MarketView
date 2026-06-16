@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useChartStore, ChartLayoutType, ChartSeriesType } from '@/lib/store/chartStore';
 import { 
   Layout, 
@@ -10,7 +10,8 @@ import {
   Eye,
   Sliders,
   RefreshCw,
-  Search
+  Search,
+  Loader2
 } from 'lucide-react';
 
 interface QuickSettingsProps {
@@ -32,6 +33,12 @@ export default function QuickSettings({ onOpenIndicators }: QuickSettingsProps) 
 
   const activeChart = charts.find(c => c.id === activeChartId) || charts[0];
   const [symbolInput, setSymbolInput] = useState(activeChart.symbol);
+  
+  // Search state
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const timeframes = ['1m', '5m', '15m', '1h', '4h', '1D', '1W'];
   const chartTypes: { id: ChartSeriesType; label: string }[] = [
@@ -40,35 +47,120 @@ export default function QuickSettings({ onOpenIndicators }: QuickSettingsProps) 
     { id: 'area', label: 'Area' },
   ];
 
+  // Debounced Search
+  useEffect(() => {
+    if (!symbolInput.trim() || symbolInput === activeChart.symbol) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSearchResults([]);
+       
+      setShowDropdown(false);
+      return;
+    }
+
+    const delayDebounceFn = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const res = await fetch(`/api/market/search?q=${encodeURIComponent(symbolInput)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults(data || []);
+          setShowDropdown(true);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [symbolInput, activeChart.symbol]);
+
+  // Click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const handleSymbolSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!symbolInput.trim()) return;
-    updateChartConfig(activeChartId, { symbol: symbolInput.toUpperCase().trim() });
+    
+    // If they just hit enter, we auto-append .NS if it lacks a suffix
+    let finalSymbol = symbolInput.toUpperCase().trim();
+    if (!finalSymbol.includes('.')) {
+      finalSymbol += '.NS';
+    }
+    
+    updateChartConfig(activeChartId, { symbol: finalSymbol });
+    setShowDropdown(false);
+  };
+
+  const handleSelectSymbol = (sym: string) => {
+    setSymbolInput(sym);
+    updateChartConfig(activeChartId, { symbol: sym });
+    setShowDropdown(false);
   };
 
   // Sync state if active chart changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (activeChart) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSymbolInput(activeChart.symbol);
     }
   }, [activeChart]);
 
   return (
-    <div className="h-14 border-b border-border bg-card/40 backdrop-blur-md flex items-center justify-between px-4 select-none shrink-0 z-10 w-full">
+    <div className="h-14 border-b border-border bg-card/40 backdrop-blur-md flex items-center justify-between px-4 select-none shrink-0 z-10 w-full relative">
       {/* Left items: Symbol input & Timeframes */}
       <div className="flex items-center gap-3">
         {/* Symbol Search Form */}
-        <form onSubmit={handleSymbolSubmit} className="relative flex items-center">
-          <input
-            type="text"
-            value={symbolInput}
-            onChange={(e) => setSymbolInput(e.target.value)}
-            placeholder="Search pair..."
-            className="w-32 bg-secondary border border-border rounded-lg pl-8 pr-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 transition font-bold"
-          />
-          <Search className="absolute left-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <button type="submit" className="hidden" />
-        </form>
+        <div className="relative flex items-center" ref={dropdownRef}>
+          <form onSubmit={handleSymbolSubmit} className="relative flex items-center">
+            <input
+              type="text"
+              value={symbolInput}
+              onChange={(e) => setSymbolInput(e.target.value)}
+              onFocus={() => {
+                if (searchResults.length > 0) setShowDropdown(true);
+              }}
+              placeholder="e.g. RELIANCE"
+              className="w-48 bg-secondary border border-border rounded-lg pl-8 pr-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 transition font-bold"
+            />
+            {isSearching ? (
+              <Loader2 className="absolute left-2.5 h-4 w-4 text-muted-foreground animate-spin pointer-events-none" />
+            ) : (
+              <Search className="absolute left-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+            )}
+            <button type="submit" className="hidden" />
+          </form>
+
+          {/* Search Dropdown */}
+          {showDropdown && searchResults.length > 0 && (
+            <div className="absolute top-full left-0 mt-2 w-64 bg-card border border-border rounded-xl shadow-xl overflow-hidden z-50">
+              <div className="max-h-64 overflow-y-auto">
+                {searchResults.map((res: any, i: number) => (
+                  <div
+                    key={i}
+                    onClick={() => handleSelectSymbol(res.symbol)}
+                    className="px-3 py-2 hover:bg-secondary/60 cursor-pointer flex flex-col transition border-b border-border/50 last:border-0"
+                  >
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-sm text-foreground">{res.symbol}</span>
+                      <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{res.exchDisp || res.exchange}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground truncate">{res.longname || res.shortname}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="h-5 w-px bg-border hidden sm:block" />
 

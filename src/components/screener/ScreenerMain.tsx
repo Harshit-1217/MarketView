@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useChartStore } from '@/lib/store/chartStore';
-import { fetch24hTicker } from '@/lib/binance/client';
 import { 
   Search, 
   ArrowUpDown, 
@@ -45,22 +44,14 @@ export default function ScreenerMain() {
   useEffect(() => {
     async function loadTickers() {
       setLoading(true);
-      const data = await fetch24hTicker();
-      
-      // Filter out non-USDT pairs for cleaner display
-      const usdtPairs = data
-        .filter((item: any) => item.symbol.endsWith('USDT'))
-        .map((item: any) => ({
-          symbol: item.symbol,
-          lastPrice: parseFloat(item.lastPrice),
-          priceChangePercent: parseFloat(item.priceChangePercent),
-          highPrice: parseFloat(item.highPrice),
-          lowPrice: parseFloat(item.lowPrice),
-          volume: parseFloat(item.volume),
-          quoteVolume: parseFloat(item.quoteVolume),
-        }));
-
-      setTickers(usdtPairs);
+      try {
+        const response = await fetch('/api/market/screener');
+        if (!response.ok) throw new Error('Screener fetch failed');
+        const data = await response.json();
+        setTickers(data || []);
+      } catch (err) {
+        console.error(err);
+      }
       setLoading(false);
     }
     loadTickers();
@@ -86,7 +77,7 @@ export default function ScreenerMain() {
       // Search match
       if (search && !t.symbol.toLowerCase().includes(search.toLowerCase())) return false;
       
-      // Min volume (Quote volume in USDT is easier to reason about)
+      // Min volume (Quote volume)
       if (minVolume && t.quoteVolume < parseFloat(minVolume)) return false;
       
       // Min price
@@ -112,8 +103,8 @@ export default function ScreenerMain() {
     });
 
   const formatNumber = (num: number) => {
-    if (num >= 1.0e9) return (num / 1.0e9).toFixed(2) + 'B';
-    if (num >= 1.0e6) return (num / 1.0e6).toFixed(2) + 'M';
+    if (num >= 1.0e7) return (num / 1.0e7).toFixed(2) + 'Cr';
+    if (num >= 1.0e5) return (num / 1.0e5).toFixed(2) + 'L';
     if (num >= 1.0e3) return (num / 1.0e3).toFixed(2) + 'K';
     return num.toFixed(2);
   };
@@ -131,7 +122,7 @@ export default function ScreenerMain() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Market Screener</h1>
-          <p className="text-xs text-muted-foreground mt-1">Real-time scan and filters across all Binance USDT trading pairs.</p>
+          <p className="text-xs text-muted-foreground mt-1">Real-time scan and filters across Top Indian Stocks.</p>
         </div>
       </div>
 
@@ -141,7 +132,7 @@ export default function ScreenerMain() {
         <div className="relative flex items-center min-w-[200px]">
           <input
             type="text"
-            placeholder="Search pair (e.g. BTC)..."
+            placeholder="Search symbol (e.g. RELIANCE)..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full bg-secondary border border-border rounded-lg pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary transition font-bold"
@@ -151,10 +142,10 @@ export default function ScreenerMain() {
 
         {/* Min Vol Input */}
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground font-semibold">Min Vol (USDT):</span>
+          <span className="text-xs text-muted-foreground font-semibold">Min Turnover:</span>
           <input
             type="number"
-            placeholder="1,000,000"
+            placeholder="1000000"
             value={minVolume}
             onChange={(e) => setMinVolume(e.target.value)}
             className="w-28 bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary"
@@ -163,10 +154,10 @@ export default function ScreenerMain() {
 
         {/* Min Price Input */}
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground font-semibold">Min Price ($):</span>
+          <span className="text-xs text-muted-foreground font-semibold">Min Price (₹):</span>
           <input
             type="number"
-            placeholder="1.00"
+            placeholder="10.00"
             value={minPrice}
             onChange={(e) => setMinPrice(e.target.value)}
             className="w-24 bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary"
@@ -232,7 +223,7 @@ export default function ScreenerMain() {
                     className="p-4 cursor-pointer hover:text-foreground transition"
                   >
                     <div className="flex items-center">
-                      <span>Price</span> {renderSortIcon('lastPrice')}
+                      <span>Price (₹)</span> {renderSortIcon('lastPrice')}
                     </div>
                   </th>
                   <th 
@@ -240,7 +231,7 @@ export default function ScreenerMain() {
                     className="p-4 cursor-pointer hover:text-foreground transition"
                   >
                     <div className="flex items-center">
-                      <span>24h Change %</span> {renderSortIcon('priceChangePercent')}
+                      <span>Daily Change</span> {renderSortIcon('priceChangePercent')}
                     </div>
                   </th>
                   <th 
@@ -248,7 +239,7 @@ export default function ScreenerMain() {
                     className="p-4 cursor-pointer hover:text-foreground transition"
                   >
                     <div className="flex items-center">
-                      <span>24h High</span> {renderSortIcon('highPrice')}
+                      <span>Day High</span> {renderSortIcon('highPrice')}
                     </div>
                   </th>
                   <th 
@@ -256,7 +247,7 @@ export default function ScreenerMain() {
                     className="p-4 cursor-pointer hover:text-foreground transition"
                   >
                     <div className="flex items-center">
-                      <span>24h Low</span> {renderSortIcon('lowPrice')}
+                      <span>Day Low</span> {renderSortIcon('lowPrice')}
                     </div>
                   </th>
                   <th 
@@ -264,7 +255,7 @@ export default function ScreenerMain() {
                     className="p-4 cursor-pointer hover:text-foreground transition"
                   >
                     <div className="flex items-center">
-                      <span>24h Vol (USDT)</span> {renderSortIcon('quoteVolume')}
+                      <span>Turnover (₹)</span> {renderSortIcon('quoteVolume')}
                     </div>
                   </th>
                   <th className="p-4 text-center">Actions</th>
@@ -280,16 +271,16 @@ export default function ScreenerMain() {
                       onClick={() => handleOpenInChart(t.symbol)}
                     >
                       <td className="p-4 font-bold text-foreground">{t.symbol}</td>
-                      <td className="p-4 font-mono font-semibold text-foreground">${t.lastPrice >= 1 ? t.lastPrice.toFixed(2) : t.lastPrice.toFixed(4)}</td>
+                      <td className="p-4 font-mono font-semibold text-foreground">₹{t.lastPrice.toFixed(2)}</td>
                       <td className={`p-4 font-mono font-bold ${isPositive ? 'text-bull' : 'text-bear'}`}>
                         <span className="flex items-center gap-1">
                           {isPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                           {isPositive ? '+' : ''}{t.priceChangePercent.toFixed(2)}%
                         </span>
                       </td>
-                      <td className="p-4 font-mono text-muted-foreground">${t.highPrice >= 1 ? t.highPrice.toFixed(2) : t.highPrice.toFixed(4)}</td>
-                      <td className="p-4 font-mono text-muted-foreground">${t.lowPrice >= 1 ? t.lowPrice.toFixed(2) : t.lowPrice.toFixed(4)}</td>
-                      <td className="p-4 font-mono text-muted-foreground">${formatNumber(t.quoteVolume)}</td>
+                      <td className="p-4 font-mono text-muted-foreground">₹{t.highPrice.toFixed(2)}</td>
+                      <td className="p-4 font-mono text-muted-foreground">₹{t.lowPrice.toFixed(2)}</td>
+                      <td className="p-4 font-mono text-muted-foreground">₹{formatNumber(t.quoteVolume)}</td>
                       <td className="p-4 text-center">
                         <button
                           onClick={(e) => {

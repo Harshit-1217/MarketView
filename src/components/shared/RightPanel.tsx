@@ -15,7 +15,7 @@ import {
   TrendingUp,
   TrendingDown
 } from 'lucide-react';
-import { binanceWSManager } from '@/lib/binance/websocket';
+import { marketManager } from '@/lib/market/polling';
 
 export default function RightPanel() {
   const [activeTab, setActiveTab] = useState<'watchlist' | 'alerts'>('watchlist');
@@ -45,7 +45,7 @@ export default function RightPanel() {
 
   // Subscribe to live prices for all symbols in the watchlist
   useEffect(() => {
-    if (!binanceWSManager || symbols.length === 0) return;
+    if (!marketManager || symbols.length === 0) return;
 
     // Local function to update state on tick
     const handleTick = (sym: string) => (candle: any) => {
@@ -58,12 +58,12 @@ export default function RightPanel() {
 
     // Subscribe to all watchlist symbols
     symbols.forEach((sym) => {
-      binanceWSManager.subscribe(sym, '1m', handleTick(sym));
+      marketManager.subscribe(sym, '1m', handleTick(sym));
     });
 
     return () => {
       symbols.forEach((sym) => {
-        binanceWSManager.unsubscribe(sym, '1m');
+        marketManager.unsubscribe(sym, '1m');
       });
     };
   }, [symbols, checkAlerts]);
@@ -72,7 +72,11 @@ export default function RightPanel() {
   const handleAddSymbol = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSymbol.trim()) return;
-    addSymbol(newSymbol.toUpperCase().trim());
+    let finalSymbol = newSymbol.toUpperCase().trim();
+    if (!finalSymbol.includes('.')) {
+      finalSymbol += '.NS';
+    }
+    addSymbol(finalSymbol);
     setNewSymbol('');
   };
 
@@ -164,7 +168,7 @@ export default function RightPanel() {
                   >
                     <div className="flex flex-col gap-0.5">
                       <span className="font-bold text-xs tracking-wide">{sym}</span>
-                      <span className="text-[10px] text-muted-foreground">Binance</span>
+                      <span className="text-[10px] text-muted-foreground">NSE/BSE</span>
                     </div>
 
                     <div className="flex items-center gap-2">

@@ -207,7 +207,7 @@ export default function JournalTable() {
                   <input
                     type="text"
                     required
-                    placeholder="BTCUSDT"
+                    placeholder="RELIANCE.NS"
                     value={symbol}
                     onChange={(e) => setSymbol(e.target.value)}
                     className="bg-secondary/40 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary uppercase font-bold"

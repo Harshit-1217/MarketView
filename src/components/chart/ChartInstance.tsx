@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useChartStore, ChartConfig, ChartSeriesType } from '@/lib/store/chartStore';
 import { useIndicatorStore, IndicatorInstance } from '@/lib/store/indicatorStore';
 import { useDrawingStore, Drawing, DrawingPoint, DrawingProperties } from '@/lib/store/drawingStore';
-import { fetchHistoricalCandles, Candle } from '@/lib/binance/client';
-import { binanceWSManager } from '@/lib/binance/websocket';
+import { fetchHistoricalCandles, Candle } from '@/lib/market/client';
+import { marketManager } from '@/lib/market/polling';
 import { 
   calculateSMA, 
   calculateEMA, 
@@ -22,11 +22,14 @@ interface ChartInstanceProps {
 }
 
 export default function ChartInstance({ config, onOpenIndicators }: ChartInstanceProps) {
-  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const outerRef = useRef<HTMLDivElement>(null);
   const mainChartRef = useRef<HTMLDivElement>(null);
   const rsiChartRef = useRef<HTMLDivElement>(null);
   const macdChartRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Measured container size (pixels) — chart only renders when > 0
+  const [containerSize, setContainerSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
 
   // States
   const [candles, setCandles] = useState<Candle[]>([]);
@@ -68,6 +71,28 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
   const hasRsi = indicators.some((ind) => ind.type === 'rsi');
   const hasMacd = indicators.some((ind) => ind.type === 'macd');
 
+  // ─── Measure the outer container to get real pixel dimensions ───
+  useEffect(() => {
+    if (!outerRef.current) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        console.log('[ChartInstance] ResizeObserver contentRect:', width, height);
+        if (width > 0 && height > 0) {
+          setContainerSize({ w: Math.floor(width), h: Math.floor(height) });
+        }
+      }
+    });
+    ro.observe(outerRef.current);
+    // Initial measurement
+    const rect = outerRef.current.getBoundingClientRect();
+    console.log('[ChartInstance] Initial getBoundingClientRect:', rect.width, rect.height);
+    if (rect.width > 0 && rect.height > 0) {
+      setContainerSize({ w: Math.floor(rect.width), h: Math.floor(rect.height) });
+    }
+    return () => ro.disconnect();
+  }, []);
+
   // Load Drawings for symbol on mount/change
   useEffect(() => {
     fetchDrawings(config.symbol);
@@ -78,7 +103,6 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
     let active = true;
 
     async function loadData() {
-      if (!mainChartRef.current) return;
       setLoading(true);
       setError(null);
 
@@ -105,23 +129,29 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
     };
   }, [config.symbol, config.timeframe]);
 
-  // Construct / update charts on UI changes
+  // ─── Construct / update charts when we have data AND a measured container ───
   useEffect(() => {
+    console.log('[ChartInstance] Chart effect: loading=', loading, 'candles=', candles.length, 'containerSize=', containerSize, 'mainChartRef=', !!mainChartRef.current);
     if (loading || candles.length === 0) return;
+    if (containerSize.w === 0 || containerSize.h === 0) return;
+    if (!mainChartRef.current) return;
+    console.log('[ChartInstance] Creating chart with dimensions:', containerSize.w, 'x', containerSize.h);
 
     // Dynamically load Lightweight Charts library
+    let destroyed = false;
     import('lightweight-charts').then((LW) => {
-      if (!mainChartRef.current) return;
+      if (destroyed || !mainChartRef.current) return;
 
       // Clean existing container children
       mainChartRef.current.innerHTML = '';
       if (rsiChartRef.current) rsiChartRef.current.innerHTML = '';
       if (macdChartRef.current) macdChartRef.current.innerHTML = '';
 
-      const baseChartOptions = {
+      const baseChartOptions: any = {
         layout: {
           background: { type: LW.ColorType.Solid, color: '#131722' },
           textColor: '#d1d4dc',
+          attributionLogo: false,
         },
         grid: {
           vertLines: { color: '#2a2e39' },
@@ -143,18 +173,28 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
         },
       };
 
-      // Create main chart
-      const chart = LW.createChart(mainChartRef.current, {
+      // Compute explicit pixel heights for sub-panels
+      const totalHeight = containerSize.h;
+      const mainHeight = hasRsi || hasMacd
+        ? Math.floor(totalHeight * 0.68)
+        : totalHeight;
+      const rsiHeight = hasRsi
+        ? (hasMacd ? Math.floor(totalHeight * 0.16) : Math.floor(totalHeight * 0.32))
+        : 0;
+      const macdHeight = hasMacd ? Math.floor(totalHeight * 0.32) : 0;
+
+      // Create main chart with EXPLICIT pixel dimensions
+      const chart = LW.createChart(mainChartRef.current!, {
         ...baseChartOptions,
-        width: mainChartRef.current.clientWidth,
-        height: mainChartRef.current.clientHeight,
+        width: containerSize.w,
+        height: mainHeight,
       });
       chartObj.current = chart;
 
-      // Add Series based on selected chart type
+      // Add Series based on selected chart type (v5 API: chart.addSeries)
       let mainSeries: any;
       if (config.chartType === 'candlestick') {
-        mainSeries = chart.addCandlestickSeries({
+        mainSeries = chart.addSeries(LW.CandlestickSeries, {
           upColor: '#26a69a',
           downColor: '#ef5350',
           borderVisible: false,
@@ -162,14 +202,14 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
           wickDownColor: '#ef5350',
         });
       } else if (config.chartType === 'area') {
-        mainSeries = chart.addAreaSeries({
+        mainSeries = chart.addSeries(LW.AreaSeries, {
           topColor: 'rgba(41, 98, 255, 0.56)',
           bottomColor: 'rgba(41, 98, 255, 0.04)',
           lineColor: 'rgba(41, 98, 255, 1)',
           lineWidth: 2,
         });
       } else {
-        mainSeries = chart.addLineSeries({
+        mainSeries = chart.addSeries(LW.LineSeries, {
           color: 'rgba(41, 98, 255, 1)',
           lineWidth: 2,
         });
@@ -187,30 +227,30 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
         if (ind.type === 'sma') {
           const smaData = calculateSMA(candles, ind.params.period || 9);
           if (smaData.length > 0) {
-            const series = chart.addLineSeries({ color: ind.color, lineWidth: 1.5, title: ind.name });
+            const series = chart.addSeries(LW.LineSeries, { color: ind.color, lineWidth: 1.5, title: ind.name });
             series.setData(smaData);
             indicatorSeriesMap.current.set(ind.id, [series]);
           }
         } else if (ind.type === 'ema') {
           const emaData = calculateEMA(candles, ind.params.period || 21);
           if (emaData.length > 0) {
-            const series = chart.addLineSeries({ color: ind.color, lineWidth: 1.5, title: ind.name });
+            const series = chart.addSeries(LW.LineSeries, { color: ind.color, lineWidth: 1.5, title: ind.name });
             series.setData(emaData);
             indicatorSeriesMap.current.set(ind.id, [series]);
           }
         } else if (ind.type === 'vwap') {
           const vwapData = calculateVWAP(candles);
           if (vwapData.length > 0) {
-            const series = chart.addLineSeries({ color: ind.color, lineWidth: 1.5, title: ind.name });
+            const series = chart.addSeries(LW.LineSeries, { color: ind.color, lineWidth: 1.5, title: ind.name });
             series.setData(vwapData);
             indicatorSeriesMap.current.set(ind.id, [series]);
           }
         } else if (ind.type === 'bb') {
           const bbData = calculateBollingerBands(candles, ind.params.period || 20, ind.params.multiplier || 2);
           if (bbData.length > 0) {
-            const upperSeries = chart.addLineSeries({ color: ind.color, lineWidth: 1, lineStyle: LW.LineStyle.Dashed, title: 'BB Upper' });
-            const middleSeries = chart.addLineSeries({ color: ind.color, lineWidth: 1.5, title: 'BB Middle' });
-            const lowerSeries = chart.addLineSeries({ color: ind.color, lineWidth: 1, lineStyle: LW.LineStyle.Dashed, title: 'BB Lower' });
+            const upperSeries = chart.addSeries(LW.LineSeries, { color: ind.color, lineWidth: 1, lineStyle: LW.LineStyle.Dashed, title: 'BB Upper' });
+            const middleSeries = chart.addSeries(LW.LineSeries, { color: ind.color, lineWidth: 1.5, title: 'BB Middle' });
+            const lowerSeries = chart.addSeries(LW.LineSeries, { color: ind.color, lineWidth: 1, lineStyle: LW.LineStyle.Dashed, title: 'BB Lower' });
 
             upperSeries.setData(bbData.map(d => ({ time: d.time, value: d.upper })));
             middleSeries.setData(bbData.map(d => ({ time: d.time, value: d.middle })));
@@ -227,13 +267,13 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
         if (rsiData.length > 0) {
           const rsiChart = LW.createChart(rsiChartRef.current, {
             ...baseChartOptions,
-            width: rsiChartRef.current.clientWidth,
-            height: rsiChartRef.current.clientHeight,
-            timeScale: { ...baseChartOptions.timeScale, visible: !hasMacd }, // show time scale only on bottommost panel
+            width: containerSize.w,
+            height: rsiHeight,
+            timeScale: { ...baseChartOptions.timeScale, visible: !hasMacd },
           });
           rsiChartObj.current = rsiChart;
 
-          const rsiSeries = rsiChart.addLineSeries({
+          const rsiSeries = rsiChart.addSeries(LW.LineSeries, {
             color: '#9b51e0',
             lineWidth: 1.5,
             title: 'RSI',
@@ -242,16 +282,16 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
           rsiSeriesObj.current = rsiSeries;
 
           // Add overbought / oversold lines
-          const lineUpper = rsiChart.addLineSeries({ color: '#f23645', lineWidth: 0.5, lineStyle: LW.LineStyle.Dashed });
-          const lineLower = rsiChart.addLineSeries({ color: '#089981', lineWidth: 0.5, lineStyle: LW.LineStyle.Dashed });
+          const lineUpper = rsiChart.addSeries(LW.LineSeries, { color: '#f23645', lineWidth: 0.5, lineStyle: LW.LineStyle.Dashed });
+          const lineLower = rsiChart.addSeries(LW.LineSeries, { color: '#089981', lineWidth: 0.5, lineStyle: LW.LineStyle.Dashed });
           lineUpper.setData(rsiData.map(d => ({ time: d.time, value: 70 })));
           lineLower.setData(rsiData.map(d => ({ time: d.time, value: 30 })));
 
           // Sync timescale
-          chart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+          chart.timeScale().subscribeVisibleLogicalRangeChange((range: any) => {
             if (range) rsiChart.timeScale().setVisibleLogicalRange(range);
           });
-          rsiChart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+          rsiChart.timeScale().subscribeVisibleLogicalRangeChange((range: any) => {
             if (range) chart.timeScale().setVisibleLogicalRange(range);
           });
         }
@@ -269,15 +309,15 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
         if (macdData.length > 0) {
           const macdChart = LW.createChart(macdChartRef.current, {
             ...baseChartOptions,
-            width: macdChartRef.current.clientWidth,
-            height: macdChartRef.current.clientHeight,
+            width: containerSize.w,
+            height: macdHeight,
             timeScale: { ...baseChartOptions.timeScale, visible: true },
           });
           macdChartObj.current = macdChart;
 
-          const macdLine = macdChart.addLineSeries({ color: '#2f80ed', lineWidth: 1.5, title: 'MACD' });
-          const signalLine = macdChart.addLineSeries({ color: '#f2994a', lineWidth: 1.5, title: 'Signal' });
-          const histLine = macdChart.addHistogramSeries({
+          const macdLine = macdChart.addSeries(LW.LineSeries, { color: '#2f80ed', lineWidth: 1.5, title: 'MACD' });
+          const signalLine = macdChart.addSeries(LW.LineSeries, { color: '#f2994a', lineWidth: 1.5, title: 'Signal' });
+          const histLine = macdChart.addSeries(LW.HistogramSeries, {
             color: '#27ae60',
             title: 'Histogram',
           });
@@ -297,14 +337,14 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
           macdHistSeriesObj.current = histLine;
 
           // Sync timescales
-          chart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+          chart.timeScale().subscribeVisibleLogicalRangeChange((range: any) => {
             if (range) macdChart.timeScale().setVisibleLogicalRange(range);
           });
-          macdChart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+          macdChart.timeScale().subscribeVisibleLogicalRangeChange((range: any) => {
             if (range) chart.timeScale().setVisibleLogicalRange(range);
           });
           if (rsiChartObj.current) {
-            rsiChartObj.current.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+            rsiChartObj.current.timeScale().subscribeVisibleLogicalRangeChange((range: any) => {
               if (range) macdChart.timeScale().setVisibleLogicalRange(range);
             });
           }
@@ -365,8 +405,6 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
               ctx.moveTo(p1.x, p1.y);
               ctx.lineTo(p2.x, p2.y);
               ctx.stroke();
-
-              // Draw circular nodes
               ctx.beginPath();
               ctx.arc(p1.x, p1.y, 4, 0, Math.PI * 2);
               ctx.arc(p2.x, p2.y, 4, 0, Math.PI * 2);
@@ -400,7 +438,6 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
           } else if (drawing.type === 'fib' && points.length === 2) {
             const [p1, p2] = points;
             if (p1.x !== null && p1.y !== null && p2.x !== null && p2.y !== null) {
-              // Draw main diagonal line
               ctx.beginPath();
               ctx.strokeStyle = '#787b86';
               ctx.lineWidth = 1;
@@ -421,7 +458,6 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
                 ctx.lineTo(Math.max(p1.x, p2.x), y);
                 ctx.stroke();
 
-                // Draw text label
                 ctx.fillStyle = colors[idx];
                 ctx.font = '9px Arial';
                 const priceVal = (drawing.points[0].price + priceDiff * lvl).toFixed(2);
@@ -434,8 +470,6 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
               ctx.fillStyle = drawing.properties.color || '#fff';
               ctx.font = '12px Arial';
               ctx.fillText(drawing.properties.text || '', p1.x + 8, p1.y + 4);
-              
-              // Draw node dot
               ctx.beginPath();
               ctx.arc(p1.x, p1.y, 3, 0, Math.PI * 2);
               ctx.fill();
@@ -496,47 +530,25 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
       chart.timeScale().subscribeVisibleLogicalRangeChange(drawAllDrawings);
       chart.timeScale().subscribeVisibleTimeRangeChange(drawAllDrawings);
 
-      // Redraw drawings on dynamic resize
-      const handleResize = () => {
-        if (!mainChartRef.current || !canvasRef.current) return;
-        const w = mainChartRef.current.clientWidth;
-        const h = mainChartRef.current.clientHeight;
-
-        chart.resize(w, h);
-        canvasRef.current.width = w;
-        canvasRef.current.height = h;
-
-        if (rsiChartObj.current && rsiChartRef.current) {
-          rsiChartObj.current.resize(rsiChartRef.current.clientWidth, rsiChartRef.current.clientHeight);
-        }
-        if (macdChartObj.current && macdChartRef.current) {
-          macdChartObj.current.resize(macdChartRef.current.clientWidth, macdChartRef.current.clientHeight);
-        }
-
-        drawAllDrawings();
-      };
-
-      const resizeObserver = new ResizeObserver(handleResize);
-      resizeObserver.observe(mainChartRef.current);
-      
-      canvasRef.current.width = mainChartRef.current.clientWidth;
-      canvasRef.current.height = mainChartRef.current.clientHeight;
+      // Redraw drawings on dynamic resize — chart resize is handled by containerSize state
+      if (canvasRef.current) {
+        canvasRef.current.width = containerSize.w;
+        canvasRef.current.height = mainHeight;
+      }
       drawAllDrawings();
 
-      // Hook WebSocket Streaming
-      if (binanceWSManager) {
-        binanceWSManager.subscribe(config.symbol, config.timeframe, (realtimeCandle, isFinal) => {
+      // Hook Polling Manager
+      if (marketManager) {
+        marketManager.subscribe(config.symbol, config.timeframe, (realtimeCandle, isFinal) => {
           mainSeries.update(realtimeCandle);
           
           setCandles((prev) => {
             if (prev.length === 0) return [realtimeCandle];
             const last = prev[prev.length - 1];
             if (last.time === realtimeCandle.time) {
-              // Replace last candle
               const updated = [...prev.slice(0, -1), realtimeCandle];
               return updated;
             } else {
-              // Append new candle
               const appended = [...prev, realtimeCandle];
               return appended;
             }
@@ -554,26 +566,55 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
 
       // Cleanup
       return () => {
-        resizeObserver.disconnect();
-        if (binanceWSManager) {
-          binanceWSManager.unsubscribe(config.symbol, config.timeframe);
+        destroyed = true;
+        if (marketManager) {
+          marketManager.unsubscribe(config.symbol, config.timeframe);
         }
-        chart.removeSeries(mainSeries);
-        chart.destroy();
-        if (rsiChartObj.current) rsiChartObj.current.destroy();
-        if (macdChartObj.current) macdChartObj.current.destroy();
+        try { chart.remove(); } catch (e) { /* ignore */ }
+        try { if (rsiChartObj.current) rsiChartObj.current.remove(); } catch (e) { /* ignore */ }
+        try { if (macdChartObj.current) macdChartObj.current.remove(); } catch (e) { /* ignore */ }
       };
     });
-  }, [loading, candles, config.chartType, indicators, hasRsi, hasMacd, activeDrawings, isDrawing, drawingPoints, activeTool, currentColor, currentWidth]);
 
-  // Synchronized Crosshair Position updates
+    // The dynamic import returns a promise; we can't return the cleanup directly.
+    // Instead we track `destroyed` flag and clean up from within the .then()
+    return () => {
+      destroyed = true;
+      if (marketManager) {
+        marketManager.unsubscribe(config.symbol, config.timeframe);
+      }
+      try { if (chartObj.current) chartObj.current.remove(); } catch (e) { /* ignore */ }
+      try { if (rsiChartObj.current) rsiChartObj.current.remove(); } catch (e) { /* ignore */ }
+      try { if (macdChartObj.current) macdChartObj.current.remove(); } catch (e) { /* ignore */ }
+      chartObj.current = null;
+      rsiChartObj.current = null;
+      macdChartObj.current = null;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, candles.length, config.chartType, config.symbol, config.timeframe, containerSize.w, containerSize.h, indicators.length, hasRsi, hasMacd]);
+
+  // Resize existing chart when container size changes (without full rebuild)
   useEffect(() => {
-    if (!syncCrosshair || !crosshairPosition || !chartObj.current || !mainSeriesObj.current) return;
-    
-    // Convert crosshair position coordinates to active charts
-    const time = crosshairPosition.time;
-    // Set custom hover state or coordinate mappings
-  }, [crosshairPosition, syncCrosshair]);
+    if (containerSize.w === 0 || containerSize.h === 0) return;
+    const mainHeight = hasRsi || hasMacd
+      ? Math.floor(containerSize.h * 0.68)
+      : containerSize.h;
+    if (chartObj.current) {
+      try { chartObj.current.resize(containerSize.w, mainHeight); } catch (e) { /* ignore */ }
+    }
+    if (rsiChartObj.current) {
+      const rsiH = hasRsi ? (hasMacd ? Math.floor(containerSize.h * 0.16) : Math.floor(containerSize.h * 0.32)) : 0;
+      try { rsiChartObj.current.resize(containerSize.w, rsiH); } catch (e) { /* ignore */ }
+    }
+    if (macdChartObj.current) {
+      const macdH = hasMacd ? Math.floor(containerSize.h * 0.32) : 0;
+      try { macdChartObj.current.resize(containerSize.w, macdH); } catch (e) { /* ignore */ }
+    }
+    if (canvasRef.current) {
+      canvasRef.current.width = containerSize.w;
+      canvasRef.current.height = mainHeight;
+    }
+  }, [containerSize.w, containerSize.h, hasRsi, hasMacd]);
 
   // Handle Drawings Canvas Clicks
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -595,7 +636,6 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
         setIsDrawing(true);
         setDrawingPoints([point, point]);
       } else {
-        // Complete drawing
         addDrawing({
           symbol: config.symbol,
           type: activeTool,
@@ -604,7 +644,7 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
         });
         setIsDrawing(false);
         setDrawingPoints([]);
-        setActiveTool(null); // Return to selector tool
+        setActiveTool(null);
       }
     } else if (activeTool === 'horizontal') {
       addDrawing({
@@ -660,13 +700,14 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
 
   return (
     <div 
+      ref={outerRef}
       onClick={() => setActiveChartId(config.id)}
-      className={`flex-1 flex flex-col min-w-0 border bg-[#131722] rounded-xl overflow-hidden shadow-lg select-none relative ${
+      className={`flex-1 w-full h-full min-w-0 min-h-0 border bg-[#131722] rounded-xl overflow-hidden shadow-lg select-none relative ${
         isActive ? 'border-primary ring-2 ring-primary/20' : 'border-border/60'
       }`}
     >
       {/* Chart Legend / HUD overlay */}
-      <div className="absolute top-3 left-4 z-10 pointer-events-none flex flex-col gap-1.5 bg-[#131722]/85 backdrop-blur px-3 py-2 rounded-lg border border-border/40 max-w-[90%]">
+      <div className="absolute top-3 left-4 z-30 pointer-events-none flex flex-col gap-1.5 bg-[#131722]/85 backdrop-blur px-3 py-2 rounded-lg border border-border/40 max-w-[90%]">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="font-bold text-foreground text-sm tracking-wide">{config.symbol}</span>
           <span className="text-xs font-semibold px-1.5 py-0.5 bg-secondary text-primary rounded">{config.timeframe}</span>
@@ -696,44 +737,73 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
         </div>
       )}
 
-      {/* Main Split Panels */}
-      <div className="flex-1 flex flex-col overflow-hidden relative">
-        {/* Main Price Chart */}
-        <div 
-          ref={mainChartRef} 
-          className="relative"
-          style={{ height: hasRsi || hasMacd ? '68%' : '100%' }}
+      {/* Chart Panels — absolutely positioned with explicit pixel dimensions */}
+      {/* Main Price Chart — always rendered so ref is available */}
+      <div 
+        ref={mainChartRef} 
+        style={{ 
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: containerSize.w > 0 ? containerSize.w : '100%',
+          height: containerSize.h > 0 
+            ? (hasRsi || hasMacd 
+                ? Math.floor(containerSize.h * 0.68)
+                : containerSize.h)
+            : '100%'
+        }} 
+      />
+
+      {/* Dynamic Drawings Canvas Layer */}
+      {activeTool && containerSize.w > 0 && (
+        <canvas
+          ref={canvasRef}
+          onMouseDown={handleCanvasMouseDown}
+          onMouseMove={handleCanvasMouseMove}
+          className="cursor-crosshair z-10 pointer-events-auto"
+          style={{ 
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: containerSize.w, 
+            height: hasRsi || hasMacd 
+              ? Math.floor(containerSize.h * 0.68)
+              : containerSize.h 
+          }}
         />
+      )}
 
-        {/* Dynamic Drawings Canvas Layer */}
-        {activeTool && (
-          <canvas
-            ref={canvasRef}
-            onMouseDown={handleCanvasMouseDown}
-            onMouseMove={handleCanvasMouseMove}
-            className="absolute top-0 left-0 w-full cursor-crosshair z-10 pointer-events-auto"
-            style={{ height: hasRsi || hasMacd ? '68%' : '100%' }}
-          />
-        )}
+      {/* RSI Oscillator Panel */}
+      {hasRsi && containerSize.h > 0 && (
+        <div 
+          ref={rsiChartRef} 
+          className="border-t border-border" 
+          style={{ 
+            position: 'absolute',
+            left: 0,
+            top: Math.floor(containerSize.h * 0.68),
+            width: containerSize.w,
+            height: hasMacd 
+              ? Math.floor(containerSize.h * 0.16) 
+              : Math.floor(containerSize.h * 0.32)
+          }} 
+        />
+      )}
 
-        {/* RSI Oscillator Panel */}
-        {hasRsi && (
-          <div 
-            ref={rsiChartRef} 
-            className="border-t border-border"
-            style={{ height: hasMacd ? '16%' : '32%' }}
-          />
-        )}
-
-        {/* MACD Oscillator Panel */}
-        {hasMacd && (
-          <div 
-            ref={macdChartRef} 
-            className="border-t border-border"
-            style={{ height: '32%' }}
-          />
-        )}
-      </div>
+      {/* MACD Oscillator Panel */}
+      {hasMacd && containerSize.h > 0 && (
+        <div 
+          ref={macdChartRef} 
+          className="border-t border-border" 
+          style={{ 
+            position: 'absolute',
+            left: 0,
+            top: Math.floor(containerSize.h * (hasRsi ? 0.84 : 0.68)),
+            width: containerSize.w,
+            height: Math.floor(containerSize.h * 0.32)
+          }} 
+        />
+      )}
 
       {/* Text Annotation Input Modal */}
       {textModal && (

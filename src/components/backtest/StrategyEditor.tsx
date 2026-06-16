@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useBacktestStore } from '@/lib/store/backtestStore';
-import { fetchHistoricalCandles, Candle } from '@/lib/binance/client';
+import { fetchHistoricalCandles, Candle } from '@/lib/market/client';
 import { 
   Play, 
   Pause, 
@@ -40,12 +40,12 @@ export default function StrategyEditor() {
     executeSell 
   } = useBacktestStore();
 
-  const [symbol, setSymbol] = useState('BTCUSDT');
+  const [symbol, setSymbol] = useState('RELIANCE.NS');
   const [timeframe, setTimeframe] = useState('1h');
   const [loading, setLoading] = useState(false);
 
   // Ticker choices
-  const symbolsList = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'ADAUSDT'];
+  const symbolsList = ['RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS', 'ICICIBANK.NS'];
   const timeframesList = ['15m', '1h', '4h', '1D'];
 
   // Load candles from Binance REST API on submit

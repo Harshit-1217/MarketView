@@ -28,7 +28,7 @@ export default function DrawingToolbar() {
 
   const { charts, activeChartId } = useChartStore();
   const activeChart = charts.find(c => c.id === activeChartId);
-  const symbol = activeChart?.symbol || 'BTCUSDT';
+  const symbol = activeChart?.symbol || 'RELIANCE.NS';
 
   const tools: { id: DrawingTool | 'select'; name: string; icon: React.ComponentType<any> }[] = [
     { id: 'select', name: 'Cursor Mode', icon: MousePointer },

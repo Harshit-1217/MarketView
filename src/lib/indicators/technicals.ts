@@ -132,7 +132,7 @@ export function calculateRSI(data: Candle[], period = 14): SingleValuePoint[] {
   let avgGain = gains / period;
   let avgLoss = losses / period;
 
-  let firstRsi = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  const firstRsi = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
   result.push({ time: data[period].time, value: firstRsi });
 
   for (let i = period + 1; i < data.length; i++) {

@@ -18,7 +18,7 @@ export default function Home() {
   const { user, loading } = useAuthStore();
 
   return (
-    <div className="flex-1 flex flex-col relative min-h-screen overflow-hidden bg-background">
+    <div className="flex-1 flex flex-col relative min-h-screen overflow-x-hidden bg-background">
       {/* Visual background lights */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] rounded-full bg-primary/10 blur-[120px]" />

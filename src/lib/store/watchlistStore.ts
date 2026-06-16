@@ -10,7 +10,7 @@ interface WatchlistState {
   removeSymbol: (symbol: string) => Promise<void>;
 }
 
-const DEFAULT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'ADAUSDT', 'XRPUSDT'];
+const DEFAULT_SYMBOLS = ['RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS', 'ICICIBANK.NS', 'SBIN.NS'];
 
 export const useWatchlistStore = create<WatchlistState>((set, get) => ({
   symbols: DEFAULT_SYMBOLS,
