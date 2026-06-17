@@ -28,7 +28,7 @@ export default function Sidebar() {
   const navItems = [
     { name: 'Charts',      path: '/chart',     icon: LineChart,   color: '#3b82f6' },
     { name: 'Screener',    path: '/screener',  icon: SearchCode,  color: '#8b5cf6' },
-    { name: 'Backtesting', path: '/backtest',  icon: History,     color: '#f59e0b' },
+    { name: 'Backtesting', path: '/backtest',  icon: History,     color: '#f59e0b', comingSoon: true },
     { name: 'Portfolio',   path: '/portfolio', icon: FolderHeart, color: '#10b981' },
     { name: 'News',        path: '/news',      icon: Newspaper,   color: '#06b6d4' },
     { name: 'Settings',    path: '/settings',  icon: Settings,    color: '#64748b' },
@@ -44,12 +44,9 @@ export default function Sidebar() {
     <aside
       style={{
         width: expanded ? '200px' : '58px',
-        background: 'rgba(5,8,17,0.9)',
-        backdropFilter: 'blur(20px)',
-        borderRight: '1px solid rgba(255,255,255,0.06)',
         transition: 'width 0.3s cubic-bezier(0.16,1,0.3,1)',
       }}
-      className="relative flex flex-col items-center py-4 justify-between h-screen shrink-0 select-none z-30 overflow-hidden"
+      className="relative flex flex-col items-center py-4 justify-between h-screen shrink-0 select-none z-30 overflow-hidden bg-background/90 backdrop-blur-xl border-r border-border"
     >
       {/* Top section */}
       <div className="flex flex-col items-center gap-5 w-full">
@@ -79,11 +76,17 @@ export default function Sidebar() {
             return (
               <Link
                 key={item.name}
-                href={item.path}
+                href={item.comingSoon ? '#' : item.path}
+                onClick={(e) => {
+                  if (item.comingSoon) {
+                    e.preventDefault();
+                    alert('Coming soon');
+                  }
+                }}
                 title={!expanded ? item.name : undefined}
                 className={`flex items-center gap-3 py-2.5 px-2 rounded-xl transition-all cursor-pointer group relative overflow-hidden ${
                   expanded ? 'justify-start' : 'justify-center'
-                }`}
+                } ${item.comingSoon ? 'opacity-50' : ''}`}
                 style={isActive
                   ? {
                     background: `linear-gradient(90deg, ${item.color}20, ${item.color}08)`,

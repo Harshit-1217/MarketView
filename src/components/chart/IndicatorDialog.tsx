@@ -5,7 +5,6 @@ import { useIndicatorStore, IndicatorType, IndicatorInstance } from '@/lib/store
 import { X, Plus, Trash2, Search, TrendingUp, BarChart2, Activity, Layers } from 'lucide-react';
 
 interface IndicatorDialogProps {
-  chartId: string;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -47,9 +46,8 @@ const CATEGORY_META = {
   structure:  { label: 'Market Structure',           icon: Layers,      color: '#a78bfa' },
 };
 
-export default function IndicatorDialog({ chartId, isOpen, onClose }: IndicatorDialogProps) {
-  const { chartIndicators, addIndicator, removeIndicator, updateIndicatorParams, updateIndicatorColor } = useIndicatorStore();
-  const activeIndicators = chartIndicators[chartId] || [];
+export default function IndicatorDialog({ isOpen, onClose }: IndicatorDialogProps) {
+  const { indicators: activeIndicators, addIndicator, removeIndicator, updateIndicatorParams, updateIndicatorColor } = useIndicatorStore();
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<'all' | 'overlay' | 'oscillator' | 'volume' | 'structure'>('all');
 
@@ -69,22 +67,18 @@ export default function IndicatorDialog({ chartId, isOpen, onClose }: IndicatorD
   })).filter(g => g.items.length > 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(5,8,17,0.85)', backdropFilter: 'blur(12px)' }}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/85 backdrop-blur-xl"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="w-full max-w-4xl rounded-3xl flex flex-col animate-slide-up overflow-hidden"
+        className="w-full max-w-4xl rounded-3xl flex flex-col animate-slide-up overflow-hidden bg-card/95 border border-border"
         style={{
           maxHeight: '88vh',
-          background: 'rgba(13,17,23,0.95)',
-          border: '1px solid rgba(255,255,255,0.08)',
           boxShadow: '0 0 0 1px rgba(59,130,246,0.1), 0 40px 100px rgba(0,0,0,0.7)',
         }}
       >
         {/* ── Header ────────────────────────────────────────────── */}
-        <div className="flex items-start justify-between p-6 pb-4"
-          style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="flex items-start justify-between p-6 pb-4 border-b border-border">
           <div>
             <div className="flex items-center gap-2.5 mb-1">
               <div className="h-8 w-8 rounded-xl flex items-center justify-center"
@@ -96,8 +90,7 @@ export default function IndicatorDialog({ chartId, isOpen, onClose }: IndicatorD
             <p className="text-xs text-muted-foreground ml-10">Add overlays and oscillators · {activeIndicators.length} active</p>
           </div>
           <button onClick={onClose}
-            className="h-8 w-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-white transition cursor-pointer"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            className="h-8 w-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground transition cursor-pointer bg-muted border border-border">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -183,7 +176,7 @@ export default function IndicatorDialog({ chartId, isOpen, onClose }: IndicatorD
                             <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed line-clamp-2">{ind.desc}</p>
                           </div>
                           <button
-                            onClick={() => addIndicator(chartId, ind.type)}
+                            onClick={() => addIndicator(ind.type)}
                             className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0 transition cursor-pointer"
                             style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.2)' }}
                             onMouseEnter={e => { e.currentTarget.style.background = '#3b82f6'; e.currentTarget.style.color = '#fff'; }}
@@ -235,7 +228,7 @@ export default function IndicatorDialog({ chartId, isOpen, onClose }: IndicatorD
                           <input
                             type="color"
                             value={ind.color}
-                            onChange={e => updateIndicatorColor(chartId, ind.id, e.target.value)}
+                            onChange={e => updateIndicatorColor(ind.id, e.target.value)}
                             className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
                             title="Change color"
                           />
@@ -245,7 +238,7 @@ export default function IndicatorDialog({ chartId, isOpen, onClose }: IndicatorD
                         <span className="text-sm font-bold text-foreground">{ind.name}</span>
                       </div>
                       <button
-                        onClick={() => removeIndicator(chartId, ind.id)}
+                        onClick={() => removeIndicator(ind.id)}
                         className="h-6 w-6 rounded-lg flex items-center justify-center text-muted-foreground transition cursor-pointer"
                         style={{ border: '1px solid transparent' }}
                         onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.2)'; }}
@@ -260,29 +253,29 @@ export default function IndicatorDialog({ chartId, isOpen, onClose }: IndicatorD
                     <div className="grid grid-cols-2 gap-2">
                       {ind.params.period !== undefined && (
                         <ParamInput label="Length" value={ind.params.period} min={1} max={500}
-                          onChange={v => updateIndicatorParams(chartId, ind.id, { period: v })} />
+                          onChange={v => updateIndicatorParams(ind.id, { period: v })} />
                       )}
                       {ind.params.multiplier !== undefined && (
                         <ParamInput label="Std Dev" value={ind.params.multiplier} step={0.1} min={0.1} max={10} float
-                          onChange={v => updateIndicatorParams(chartId, ind.id, { multiplier: v })} />
+                          onChange={v => updateIndicatorParams(ind.id, { multiplier: v })} />
                       )}
                       {ind.params.fastPeriod !== undefined && <>
                         <ParamInput label="Fast EMA" value={ind.params.fastPeriod!} min={1} max={200}
-                          onChange={v => updateIndicatorParams(chartId, ind.id, { fastPeriod: v })} />
+                          onChange={v => updateIndicatorParams(ind.id, { fastPeriod: v })} />
                         <ParamInput label="Slow EMA" value={ind.params.slowPeriod!} min={1} max={200}
-                          onChange={v => updateIndicatorParams(chartId, ind.id, { slowPeriod: v })} />
+                          onChange={v => updateIndicatorParams(ind.id, { slowPeriod: v })} />
                         <ParamInput label="Signal" value={ind.params.signalPeriod!} min={1} max={100}
-                          onChange={v => updateIndicatorParams(chartId, ind.id, { signalPeriod: v })} />
+                          onChange={v => updateIndicatorParams(ind.id, { signalPeriod: v })} />
                       </>}
                       {ind.params.rsiPeriod !== undefined && <>
                         <ParamInput label="RSI Period" value={ind.params.rsiPeriod!} min={1} max={100}
-                          onChange={v => updateIndicatorParams(chartId, ind.id, { rsiPeriod: v })} />
+                          onChange={v => updateIndicatorParams(ind.id, { rsiPeriod: v })} />
                         <ParamInput label="Stoch Period" value={ind.params.stochPeriod!} min={1} max={100}
-                          onChange={v => updateIndicatorParams(chartId, ind.id, { stochPeriod: v })} />
+                          onChange={v => updateIndicatorParams(ind.id, { stochPeriod: v })} />
                         <ParamInput label="%K Period" value={ind.params.kPeriod!} min={1} max={50}
-                          onChange={v => updateIndicatorParams(chartId, ind.id, { kPeriod: v })} />
+                          onChange={v => updateIndicatorParams(ind.id, { kPeriod: v })} />
                         <ParamInput label="%D Period" value={ind.params.dPeriod!} min={1} max={50}
-                          onChange={v => updateIndicatorParams(chartId, ind.id, { dPeriod: v })} />
+                          onChange={v => updateIndicatorParams(ind.id, { dPeriod: v })} />
                       </>}
                     </div>
                   </div>

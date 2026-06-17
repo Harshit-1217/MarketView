@@ -47,7 +47,10 @@ export default function NewsPage() {
   };
 
   useEffect(() => {
-    fetchNews();
+    const timer = setTimeout(() => {
+      fetchNews();
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const filteredArticles = articles.filter((art) => {

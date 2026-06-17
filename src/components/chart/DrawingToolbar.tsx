@@ -30,7 +30,13 @@ import {
   Ruler,
   Eraser,
   Undo2,
-  Redo2
+  Redo2,
+  MessageSquare,
+  MoveDiagonal,
+  ArrowRightToLine,
+  Plus,
+  Waypoints,
+  Spline
 } from 'lucide-react';
 
 /* ─── Tooltip component ─────────────────────────────────────────────────── */
@@ -51,10 +57,8 @@ function Tooltip({ children, label, shortcut, side = 'right' }: {
       >
         <div
           className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-xl"
+          className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-xl bg-card border border-border text-foreground"
           style={{
-            background: 'rgba(13,17,23,0.97)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            color: '#e2e8f0',
             boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
           }}
         >
@@ -69,10 +73,11 @@ function Tooltip({ children, label, shortcut, side = 'right' }: {
         {/* Arrow */}
         {side === 'right' && (
           <div className="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0"
+            className="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0"
             style={{
               borderTop: '5px solid transparent',
               borderBottom: '5px solid transparent',
-              borderRight: '5px solid rgba(255,255,255,0.1)',
+              borderRight: '5px solid var(--border)',
             }}
           />
         )}
@@ -121,11 +126,17 @@ const CATEGORIES: { id: string; defaultTool: DrawingTool | 'select'; items: Tool
     items: [
       { id: 'trend', name: 'Trend Line', shortcut: 'T', icon: TrendingUp },
       { id: 'ray', name: 'Ray', icon: MoveRight },
+      { id: 'infoLine', name: 'Info Line', icon: MessageSquare },
+      { id: 'trendAngle', name: 'Trend Angle', icon: MoveDiagonal },
+      { id: 'horizontal', name: 'Horizontal Line', shortcut: 'H', icon: Minus },
+      { id: 'horizontalRay', name: 'Horizontal Ray', icon: ArrowRightToLine },
+      { id: 'vertical', name: 'Vertical Line', shortcut: 'V', icon: SeparatorVertical },
+      { id: 'crossLine', name: 'Cross Line', icon: Plus },
       { id: 'extendedLine', name: 'Extended Line', icon: ArrowLeftRight },
       { id: 'arrow', name: 'Arrow Line', icon: ArrowUpRight },
-      { id: 'horizontal', name: 'Horizontal Line', shortcut: 'H', icon: Minus },
-      { id: 'vertical', name: 'Vertical Line', shortcut: 'V', icon: SeparatorVertical },
       { id: 'parallelChannel', name: 'Parallel Channel', icon: Equal },
+      { id: 'path', name: 'Path', icon: Waypoints },
+      { id: 'curve', name: 'Curve', icon: Spline },
     ]
   },
   {
@@ -244,34 +255,11 @@ export default function DrawingToolbar() {
   const renderToolButton = (isSelected: boolean, Icon: React.ComponentType<any>, onClick: () => void, isFlyoutItem = false, label = "") => (
     <button
       onClick={onClick}
-      className={`relative flex items-center transition-all cursor-pointer overflow-hidden ${isFlyoutItem ? 'w-full px-3 py-2 gap-3 hover:bg-white/5 rounded-lg' : 'w-9 h-9 rounded-xl justify-center'}`}
-      style={!isFlyoutItem ? (isSelected
-        ? {
-          background: 'rgba(59,130,246,0.2)',
-          border: '1px solid rgba(59,130,246,0.4)',
-          color: '#3b82f6',
-          boxShadow: '0 0 12px rgba(59,130,246,0.2)',
-        }
-        : {
-          background: 'transparent',
-          border: '1px solid transparent',
-          color: '#64748b',
-        }
-      ) : { color: isSelected ? '#3b82f6' : '#e2e8f0' }}
-      onMouseEnter={e => {
-        if (!isFlyoutItem && !isSelected) {
-          e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
-          e.currentTarget.style.color = '#e2e8f0';
-        }
-      }}
-      onMouseLeave={e => {
-        if (!isFlyoutItem && !isSelected) {
-          e.currentTarget.style.background = 'transparent';
-          e.currentTarget.style.borderColor = 'transparent';
-          e.currentTarget.style.color = '#64748b';
-        }
-      }}
+      className={`relative flex items-center transition-all cursor-pointer overflow-hidden ${
+        isFlyoutItem 
+          ? `w-full px-3 py-2 gap-3 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 ${isSelected ? 'text-primary' : 'text-foreground'}`
+          : `w-9 h-9 rounded-xl justify-center ${isSelected ? 'bg-primary/20 border border-primary/40 text-primary shadow-[0_0_12px_rgba(59,130,246,0.2)]' : 'bg-transparent border border-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5 hover:border-black/10 dark:hover:border-white/10 hover:text-foreground'}`
+      }`}
     >
       {isSelected && !isFlyoutItem && (
         <div className="absolute inset-0 opacity-30" style={{ background: 'radial-gradient(circle, #3b82f6, transparent)' }} />
@@ -283,12 +271,7 @@ export default function DrawingToolbar() {
 
   return (
     <div
-      className="w-[52px] flex flex-col items-center py-3 justify-between h-full shrink-0 select-none relative z-[60]"
-      style={{
-        background: 'rgba(5,8,17,0.88)',
-        backdropFilter: 'blur(20px)',
-        borderRight: '1px solid rgba(255,255,255,0.05)',
-      }}
+      className="w-[52px] flex flex-col items-center py-3 justify-between h-full shrink-0 select-none relative z-[60] bg-background/90 backdrop-blur-xl border-r border-border"
     >
       {/* ── Top: Tool Categories ─────────────────────────────────────── */}
       <div className="flex flex-col gap-1 w-full px-1.5">
@@ -315,11 +298,7 @@ export default function DrawingToolbar() {
               {openFlyout === category.id && (
                 <div className="absolute left-full top-0 pl-1 z-50 w-[260px]">
                   <div 
-                    className="p-1.5 rounded-xl shadow-2xl animate-in fade-in slide-in-from-left-2 duration-150 w-full"
-                    style={{
-                      background: 'rgba(13,17,23,0.98)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                    }}
+                    className="p-1.5 rounded-xl shadow-2xl animate-in fade-in slide-in-from-left-2 duration-150 w-full bg-card/95 border border-border"
                   >
                   {category.items.map((item, idx) => {
                     const isSelected = item.id !== null && (item.id === activeTool || (activeTool === null && item.id === 'crosshair'));
@@ -363,12 +342,7 @@ export default function DrawingToolbar() {
                 transition-all duration-200 z-50"
             >
               <div 
-                className="p-3 rounded-2xl shadow-2xl"
-                style={{
-                  background: 'rgba(13,17,23,0.98)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  minWidth: '136px',
-                }}
+                className="p-3 rounded-2xl shadow-2xl bg-card/95 border border-border min-w-[136px]"
               >
                 <div className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-2 px-1">Color</div>
                 <div className="grid grid-cols-4 gap-2">
@@ -410,12 +384,7 @@ export default function DrawingToolbar() {
                 transition-all duration-200 z-50"
             >
               <div
-                className="p-3 rounded-2xl shadow-2xl"
-                style={{
-                  background: 'rgba(13,17,23,0.98)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  minWidth: '110px',
-                }}
+                className="p-3 rounded-2xl shadow-2xl bg-card/95 border border-border min-w-[110px]"
               >
                 <div className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Width</div>
                 <div className="flex flex-col gap-1.5">
@@ -441,7 +410,7 @@ export default function DrawingToolbar() {
             </div>
           </div>
 
-        <div className="w-6 h-px my-1" style={{ background: 'rgba(255,255,255,0.07)' }} />
+        <div className="w-6 h-px my-1 bg-border" />
 
         {/* Toggles */}
         <Tooltip label="Magnet Mode">
@@ -460,7 +429,7 @@ export default function DrawingToolbar() {
           {renderToolButton(areDrawingsHidden, areDrawingsHidden ? EyeOff : Eye, () => setAreDrawingsHidden(!areDrawingsHidden))}
         </Tooltip>
 
-        <div className="w-6 h-px my-1" style={{ background: 'rgba(255,255,255,0.07)' }} />
+        <div className="w-6 h-px my-1 bg-border" />
 
         <Tooltip label="Undo (Ctrl+Z)">
           <button

@@ -64,8 +64,11 @@ export default function StrategyEditor() {
 
   // Trigger initial fetch
   useEffect(() => {
-    handleLoadData();
-  }, []);
+    const timer = setTimeout(() => {
+      handleLoadData();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [handleLoadData]);
 
   // Handle Play Interval Loop
   useEffect(() => {

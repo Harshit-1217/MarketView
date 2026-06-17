@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createClient } from '../supabase/client';
 
-export type DrawingTool = 'crosshair' | 'dot' | 'arrowCursor' | 'eraser' | 'trend' | 'horizontal' | 'vertical' | 'rectangle' | 'fib' | 'text' | 'ray' | 'arrow' | 'brush' | 'ellipse' | 'extendedLine' | 'parallelChannel' | 'triangle' | 'ruler' | null;
+export type DrawingTool = 'crosshair' | 'dot' | 'arrowCursor' | 'eraser' | 'trend' | 'horizontal' | 'vertical' | 'rectangle' | 'fib' | 'text' | 'ray' | 'arrow' | 'brush' | 'ellipse' | 'extendedLine' | 'parallelChannel' | 'triangle' | 'ruler' | 'infoLine' | 'trendAngle' | 'horizontalRay' | 'crossLine' | 'path' | 'curve' | null;
 
 export interface DrawingPoint {
   time: number; // timestamp in seconds
@@ -18,7 +18,7 @@ export interface DrawingProperties {
 export interface Drawing {
   id: string;
   symbol: string;
-  type: 'trend' | 'horizontal' | 'vertical' | 'rectangle' | 'fib' | 'text' | 'ray' | 'arrow' | 'brush' | 'ellipse' | 'extendedLine' | 'parallelChannel' | 'triangle' | 'ruler';
+  type: 'trend' | 'horizontal' | 'vertical' | 'rectangle' | 'fib' | 'text' | 'ray' | 'arrow' | 'brush' | 'ellipse' | 'extendedLine' | 'parallelChannel' | 'triangle' | 'ruler' | 'infoLine' | 'trendAngle' | 'horizontalRay' | 'crossLine' | 'path' | 'curve';
   points: DrawingPoint[];
   properties: DrawingProperties;
 }

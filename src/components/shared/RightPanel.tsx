@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useWatchlistStore } from '@/lib/store/watchlistStore';
 import { useAlertStore } from '@/lib/store/alertStore';
+import { usePathname, useRouter } from 'next/navigation';
 import { useChartStore } from '@/lib/store/chartStore';
 import { 
   Plus, 
@@ -24,6 +25,8 @@ import { marketManager } from '@/lib/market/polling';
 export default function RightPanel() {
   const [activeTab, setActiveTab] = useState<'watchlist' | 'alerts'>('watchlist');
   const [expanded, setExpanded] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
 
   // Watchlist hooks
   const { 
@@ -60,7 +63,7 @@ export default function RightPanel() {
 
   // Live price tracking
   const [livePrices, setLivePrices] = useState<Record<string, number>>({});
-  const [liveChanges, setLiveChanges] = useState<Record<string, number>>({});
+  const [liveChanges, setLiveChanges] = useState<Record<string, { pct: number; abs: number }>>({});
   const [sortBy, setSortBy] = useState<'none' | 'price_asc' | 'price_desc' | 'change_asc' | 'change_desc'>('none');
 
   // Initialize
@@ -74,9 +77,10 @@ export default function RightPanel() {
     if (!marketManager || symbols.length === 0) return;
     const handleTick = (sym: string) => (candle: any) => {
       const price = candle.close;
-      const change = candle.open > 0 ? ((candle.close - candle.open) / candle.open) * 100 : 0;
+      const pct = candle.open > 0 ? ((candle.close - candle.open) / candle.open) * 100 : 0;
+      const abs = candle.close - candle.open;
       setLivePrices((prev) => ({ ...prev, [sym]: price }));
-      setLiveChanges((prev) => ({ ...prev, [sym]: change }));
+      setLiveChanges((prev) => ({ ...prev, [sym]: { pct, abs } }));
       checkAlerts(sym, price);
     };
     const unsubs: (() => void)[] = [];
@@ -94,18 +98,18 @@ export default function RightPanel() {
 
   // Sort symbols
   const sortedSymbols = [...symbols].sort((a, b) => {
-    if (sortBy === 'none') return 0;
+    if (sortBy === 'none') return a.localeCompare(b);
     const priceA = livePrices[a] || 0;
     const priceB = livePrices[b] || 0;
-    const changeA = liveChanges[a] || 0;
-    const changeB = liveChanges[b] || 0;
+    const changeA = liveChanges[a]?.pct || 0;
+    const changeB = liveChanges[b]?.pct || 0;
 
     switch (sortBy) {
       case 'price_asc': return priceA - priceB;
       case 'price_desc': return priceB - priceA;
       case 'change_asc': return changeA - changeB;
       case 'change_desc': return changeB - changeA;
-      default: return 0;
+      default: return a.localeCompare(b);
     }
   });
 
@@ -163,6 +167,9 @@ export default function RightPanel() {
 
   const selectSymbol = (sym: string) => {
     updateChartConfig(activeChartId, { symbol: sym });
+    if (!pathname.startsWith('/chart')) {
+      router.push('/chart');
+    }
   };
 
   // ─── Toggle trigger tab (always visible on right edge) ──────────────────────
@@ -427,7 +434,7 @@ export default function RightPanel() {
                         </span>
                         {change !== undefined && (
                           <span className={`text-[10px] font-bold ${isPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
-                            {isPositive ? '+' : ''}{change.toFixed(2)}%
+                            {isPositive ? '+' : ''}{change.abs.toFixed(2)} ({isPositive ? '+' : ''}{change.pct.toFixed(2)}%)
                           </span>
                         )}
                       </div>

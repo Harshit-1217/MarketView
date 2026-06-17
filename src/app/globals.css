@@ -55,6 +55,35 @@
   --bear: #ef4444;
 }
 
+.light ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.light ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.light .glass {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.light .glass-card {
+  background: linear-gradient(135deg, rgba(0,0,0,0.02) 0%, rgba(0,0,0,0.0) 100%);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.light .glass-bright {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.light .bg-grid {
+  background-image: 
+    linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px);
+}
+
 @theme {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -382,11 +411,6 @@ input:focus, textarea:focus, select:focus {
   border-left: 2px solid #3b82f6;
 }
 
-.quicksettings-bar {
-  background: rgba(5, 8, 17, 0.85);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-}
 
 /* ─── Holographic shimmer for premium elements ───────────────────────────────── */
 .holo {

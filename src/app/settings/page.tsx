@@ -28,7 +28,10 @@ export default function SettingsPage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const isLight = document.documentElement.classList.contains('light');
-      setTheme(isLight ? 'light' : 'dark');
+      const timer = setTimeout(() => {
+        setTheme(isLight ? 'light' : 'dark');
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, []);
 

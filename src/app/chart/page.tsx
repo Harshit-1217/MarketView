@@ -42,7 +42,6 @@ export default function ChartPage() {
 
       {/* 3. Overlay Indicators Dialog */}
       <IndicatorDialog
-        chartId={activeChartId}
         isOpen={indicatorsOpen}
         onClose={() => setIndicatorsOpen(false)}
       />

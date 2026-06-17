@@ -15,6 +15,7 @@ function getYahooInterval(timeframe: string): "1m" | "2m" | "5m" | "15m" | "30m"
     case '4h': return '1h'; // Yahoo doesn't support 4h directly, fallback to 1h
     case '1D': return '1d';
     case '1W': return '1wk';
+    case '1M': return '1mo';
     default: return '1d';
   }
 }

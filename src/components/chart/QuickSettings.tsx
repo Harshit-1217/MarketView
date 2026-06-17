@@ -25,8 +25,7 @@ function QSTooltip({ children, label }: { children: React.ReactNode; label: stri
       <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 pointer-events-none
         opacity-0 group-hover/qstip:opacity-100 transition-all duration-150
         translate-y-1 group-hover/qstip:translate-y-0 z-[60] whitespace-nowrap">
-        <div className="px-2 py-1 rounded-lg text-[11px] font-semibold shadow-xl"
-          style={{ background:'rgba(13,17,23,0.97)', border:'1px solid rgba(255,255,255,0.1)', color:'#e2e8f0' }}>
+        <div className="px-2 py-1 rounded-lg text-[11px] font-semibold shadow-xl bg-card border border-border text-foreground">
           {label}
         </div>
       </div>
@@ -72,7 +71,7 @@ export default function QuickSettings({ onOpenIndicators }: QuickSettingsProps) 
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const timeframes = ['1m', '5m', '15m', '1h', '4h', '1D', '1W'];
+  const timeframes = ['1m', '5m', '15m', '1h', '4h', '1D', '1W', '1M'];
   const chartTypes: { id: ChartSeriesType; label: string }[] = [
     { id: 'candlestick', label: 'Candles' },
     { id: 'line', label: 'Line' },
@@ -148,7 +147,7 @@ export default function QuickSettings({ onOpenIndicators }: QuickSettingsProps) 
   }, [activeChart]);
 
   return (
-    <div className="h-14 flex items-center justify-between px-4 select-none shrink-0 z-40 w-full relative quicksettings-bar">
+    <div className="h-14 flex items-center justify-between px-4 select-none shrink-0 z-40 w-full relative bg-card/85 backdrop-blur border-b border-border">
       {/* Left items: Symbol input & Timeframes */}
       <div className="flex items-center gap-3">
         {/* Symbol Search Form */}
@@ -173,8 +172,7 @@ export default function QuickSettings({ onOpenIndicators }: QuickSettingsProps) 
           </form>
 
           {showDropdown && searchResults.length > 0 && (
-            <div className="absolute top-full left-0 mt-2 w-72 rounded-2xl shadow-2xl overflow-hidden z-50"
-              style={{ background:'rgba(13,17,23,0.98)', border:'1px solid rgba(255,255,255,0.1)' }}>
+            <div className="absolute top-full left-0 mt-2 w-72 rounded-2xl shadow-2xl overflow-hidden z-50 bg-card/95 border border-border">
               <div className="max-h-72 overflow-y-auto">
                 {searchResults.map((res: any, i: number) => (
                   <div
@@ -216,11 +214,10 @@ export default function QuickSettings({ onOpenIndicators }: QuickSettingsProps) 
           </button>
         </QSTooltip>
 
-        <div className="h-5 w-px hidden sm:block" style={{ background:'rgba(255,255,255,0.08)' }} />
+        <div className="h-5 w-px hidden sm:block bg-border" />
 
         {/* Timeframe selector */}
-        <div className="hidden sm:flex items-center p-0.5 rounded-xl"
-          style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.07)' }}>
+        <div className="hidden sm:flex items-center p-0.5 rounded-xl border border-border bg-black/5 dark:bg-white/5">
           {timeframes.map((tf) => {
             const isSelected = activeChart.timeframe === tf;
             return (
@@ -259,8 +256,7 @@ export default function QuickSettings({ onOpenIndicators }: QuickSettingsProps) 
       {/* Right items: Chart Types, Layout grid, sync options, indicators */}
       <div className="flex items-center gap-3">
         {/* Series Types */}
-        <div className="hidden md:flex items-center p-0.5 rounded-xl"
-          style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.07)' }}>
+        <div className="hidden md:flex items-center p-0.5 rounded-xl border border-border bg-black/5 dark:bg-white/5">
           {chartTypes.map((t) => {
             const isSelected = activeChart.chartType === t.id;
             return (
@@ -296,11 +292,10 @@ export default function QuickSettings({ onOpenIndicators }: QuickSettingsProps) 
           </button>
         </QSTooltip>
 
-        <div className="h-5 w-px" style={{ background:'rgba(255,255,255,0.08)' }} />
+        <div className="h-5 w-px bg-border" />
 
         {/* Grid layouts configuration */}
-        <div className="flex items-center p-0.5 rounded-xl"
-          style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.07)' }}>
+        <div className="flex items-center p-0.5 rounded-xl border border-border bg-black/5 dark:bg-white/5">
           {([{ id: '1', label: 'Single chart', Icon: Square }, { id: '2', label: 'Split 2 charts', Icon: Columns2 }, { id: '4', label: '4-grid charts', Icon: Grid2X2 }] as const).map(({ id, label, Icon }) => (
             <QSTooltip key={id} label={label}>
               <button

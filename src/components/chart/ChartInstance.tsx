@@ -48,8 +48,7 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
 
   // Store bindings
   const { activeChartId, setActiveChartId, syncCrosshair, crosshairPosition, setCrosshairPosition } = useChartStore();
-  const { chartIndicators } = useIndicatorStore();
-  const indicators = chartIndicators[config.id] || [];
+  const { indicators } = useIndicatorStore();
   const { drawings, activeTool, setActiveTool, currentColor, currentWidth, addDrawing, deleteDrawing, fetchDrawings, isMagnetModeEnabled, isDrawingModeLocked, areDrawingsLocked, areDrawingsHidden } = useDrawingStore();
   const { symbols, addSymbol, removeSymbol } = useWatchlistStore();
 
@@ -83,31 +82,35 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
   const [isDrawing, setIsDrawing] = useState(false);
   const [textModal, setTextModal] = useState<{ open: boolean; x: number; y: number; time: number; price: number } | null>(null);
   const [textInput, setTextInput] = useState('');
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = () => setContextMenu(null);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
   
   const drawDrawingsRef = useRef<(() => void) | null>(null);
 
   const isActive = activeChartId === config.id;
 
   const activeDrawingsRef = useRef(activeDrawings);
-  activeDrawingsRef.current = activeDrawings;
-
   const drawingPointsRef = useRef(drawingPoints);
-  drawingPointsRef.current = drawingPoints;
-
   const isDrawingRef = useRef(isDrawing);
-  isDrawingRef.current = isDrawing;
-
   const activeToolRef = useRef(activeTool);
-  activeToolRef.current = activeTool;
-
   const currentColorRef = useRef(currentColor);
-  currentColorRef.current = currentColor;
-
   const currentWidthRef = useRef(currentWidth);
-  currentWidthRef.current = currentWidth;
-
   const areDrawingsHiddenRef = useRef(areDrawingsHidden);
-  areDrawingsHiddenRef.current = areDrawingsHidden;
+
+  useEffect(() => {
+    activeDrawingsRef.current = activeDrawings;
+    drawingPointsRef.current = drawingPoints;
+    isDrawingRef.current = isDrawing;
+    activeToolRef.current = activeTool;
+    currentColorRef.current = currentColor;
+    currentWidthRef.current = currentWidth;
+    areDrawingsHiddenRef.current = areDrawingsHidden;
+  }, [activeDrawings, drawingPoints, isDrawing, activeTool, currentColor, currentWidth, areDrawingsHidden]);
 
   // Oscillator types that need sub-panels (not overlays)
   const OSCILLATOR_TYPES = ['rsi', 'macd', 'atr', 'stochRsi', 'stochastic', 'cci', 'williamsR', 'obv'];
@@ -180,10 +183,20 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
   }, [config.symbol, config.timeframe]);
 
   // ─── Construct / update charts when we have data AND a measured container ───
+  const [initialSizeSet, setInitialSizeSet] = useState(false);
+  useEffect(() => {
+    if (containerSize.w > 0 && containerSize.h > 0 && !initialSizeSet) {
+      const timer = setTimeout(() => {
+        setInitialSizeSet(true);
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [containerSize.w, containerSize.h, initialSizeSet]);
+
   useEffect(() => {
     console.log('[ChartInstance] Chart effect: loading=', loading, 'candles=', candles.length, 'containerSize=', containerSize, 'mainChartRef=', !!mainChartRef.current);
     if (loading || candles.length === 0) return;
-    if (containerSize.w === 0 || containerSize.h === 0) return;
+    if (!initialSizeSet) return;
     if (!mainChartRef.current) return;
     console.log('[ChartInstance] Creating chart with dimensions:', containerSize.w, 'x', containerSize.h);
 
@@ -198,15 +211,17 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
       oscChartObjs.current.clear();
       oscPanelRefs.current.forEach((el) => { el.innerHTML = ''; });
 
+      const isLight = document.documentElement.classList.contains('light');
+
       const baseChartOptions: any = {
         layout: {
-          background: { type: LW.ColorType.Solid, color: '#131722' },
-          textColor: '#d1d4dc',
+          background: { type: LW.ColorType.Solid, color: isLight ? '#ffffff' : '#131722' },
+          textColor: isLight ? '#0f172a' : '#d1d4dc',
           attributionLogo: false,
         },
         grid: {
-          vertLines: { color: '#2a2e39' },
-          horzLines: { color: '#2a2e39' },
+          vertLines: { color: isLight ? 'rgba(0,0,0,0.06)' : '#2a2e39' },
+          horzLines: { color: isLight ? 'rgba(0,0,0,0.06)' : '#2a2e39' },
         },
         crosshair: {
           mode: LW.CrosshairMode.Normal,
@@ -218,7 +233,7 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
           },
         },
         timeScale: {
-          borderColor: '#2a2e39',
+          borderColor: isLight ? 'rgba(0,0,0,0.1)' : '#2a2e39',
           timeVisible: true,
           secondsVisible: false,
         },
@@ -379,7 +394,7 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
             const data = calculateRSI(candles, ind.params.period || 14);
             if (data.length > 0) {
               const rsiSeries = oscChart.addSeries(LW.LineSeries, { color: ind.color || '#9b51e0', lineWidth: 2, title: 'RSI' });
-              rsiSeries.setData(data as any);
+              rsiSeries.setData(data.filter(d => !isNaN(d.value)) as any);
               const lineUpper = oscChart.addSeries(LW.LineSeries, { color: '#f23645', lineWidth: 1, lineStyle: LW.LineStyle.Dashed });
               const lineLower = oscChart.addSeries(LW.LineSeries, { color: '#089981', lineWidth: 1, lineStyle: LW.LineStyle.Dashed });
               lineUpper.setData(data.map(d => ({ time: d.time, value: 70 })) as any);
@@ -724,6 +739,92 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
               }
               ctx.stroke();
             }
+          } else if (drawing.type === 'horizontalRay' && points.length >= 1) {
+            const [p1] = points;
+            if (p1.x !== null && p1.y !== null) {
+              ctx.beginPath();
+              ctx.moveTo(p1.x, p1.y);
+              ctx.lineTo(canvas.width, p1.y);
+              ctx.stroke();
+            }
+          } else if (drawing.type === 'crossLine' && points.length >= 1) {
+            const [p1] = points;
+            if (p1.x !== null && p1.y !== null) {
+              ctx.beginPath();
+              ctx.moveTo(0, p1.y);
+              ctx.lineTo(canvas.width, p1.y);
+              ctx.moveTo(p1.x, 0);
+              ctx.lineTo(p1.x, canvas.height);
+              ctx.stroke();
+            }
+          } else if (drawing.type === 'infoLine' && points.length === 2) {
+            const [p1, p2] = points;
+            if (p1.x !== null && p1.y !== null && p2.x !== null && p2.y !== null) {
+              ctx.beginPath();
+              ctx.moveTo(p1.x, p1.y);
+              ctx.lineTo(p2.x, p2.y);
+              ctx.stroke();
+              
+              const priceDiff = drawing.points[1].price - drawing.points[0].price;
+              const pctDiff = (priceDiff / drawing.points[0].price) * 100;
+              const angle = -Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI;
+              
+              ctx.fillStyle = 'rgba(13, 17, 23, 0.8)';
+              ctx.font = '12px Arial';
+              const text1 = `${priceDiff > 0 ? '+' : ''}${priceDiff.toFixed(2)} (${pctDiff.toFixed(2)}%)`;
+              const text2 = `${angle.toFixed(1)}°`;
+              const textWidth = Math.max(ctx.measureText(text1).width, ctx.measureText(text2).width);
+              
+              ctx.fillRect(p2.x + 10, p2.y - 15, textWidth + 12, 36);
+              ctx.fillStyle = drawing.properties.color || '#2962ff';
+              ctx.fillText(text1, p2.x + 16, p2.y);
+              ctx.fillText(text2, p2.x + 16, p2.y + 16);
+            }
+          } else if (drawing.type === 'trendAngle' && points.length === 2) {
+            const [p1, p2] = points;
+            if (p1.x !== null && p1.y !== null && p2.x !== null && p2.y !== null) {
+              ctx.beginPath();
+              ctx.moveTo(p1.x, p1.y);
+              ctx.lineTo(p2.x, p2.y);
+              ctx.stroke();
+              
+              ctx.beginPath();
+              ctx.setLineDash([4, 4]);
+              ctx.moveTo(p1.x, p1.y);
+              ctx.lineTo(p2.x, p1.y);
+              ctx.stroke();
+              ctx.setLineDash([]);
+              
+              const angleRad = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+              const angleDeg = -angleRad * 180 / Math.PI;
+              
+              ctx.beginPath();
+              ctx.arc(p1.x, p1.y, 30, angleRad < 0 ? angleRad : 0, angleRad < 0 ? 0 : angleRad, angleRad < 0);
+              ctx.stroke();
+              
+              ctx.fillStyle = drawing.properties.color || '#2962ff';
+              ctx.font = '12px Arial';
+              ctx.fillText(`${angleDeg.toFixed(1)}°`, p2.x + 10, p2.y);
+            }
+          } else if (drawing.type === 'path' && points.length >= 2) {
+            ctx.beginPath();
+            if (points[0].x !== null && points[0].y !== null) {
+              ctx.moveTo(points[0].x, points[0].y);
+              for (let i = 1; i < points.length; i++) {
+                if (points[i].x !== null && points[i].y !== null) {
+                  ctx.lineTo(points[i].x, points[i].y);
+                }
+              }
+              ctx.stroke();
+            }
+          } else if (drawing.type === 'curve' && points.length === 3) {
+            const [p1, p2, p3] = points;
+            if (p1.x !== null && p1.y !== null && p2.x !== null && p2.y !== null && p3.x !== null && p3.y !== null) {
+              ctx.beginPath();
+              ctx.moveTo(p1.x, p1.y);
+              ctx.quadraticCurveTo(p2.x, p2.y, p3.x, p3.y);
+              ctx.stroke();
+            }
           }
         });
 
@@ -831,6 +932,75 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
                 ctx.moveTo(p1.x - dx * 2000, p1.y - dy * 2000);
                 ctx.lineTo(p1.x + dx * 2000, p1.y + dy * 2000);
                 ctx.stroke();
+              }
+            } else if (activeTool === 'infoLine' && drawingPoints.length === 2) {
+              const p2 = {
+                x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
+                y: mainSeries.priceToCoordinate(drawingPoints[1].price),
+              };
+              if (p2.x !== null && p2.y !== null) {
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.stroke();
+              }
+            } else if (activeTool === 'trendAngle' && drawingPoints.length === 2) {
+              const p2 = {
+                x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
+                y: mainSeries.priceToCoordinate(drawingPoints[1].price),
+              };
+              if (p2.x !== null && p2.y !== null) {
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.setLineDash([4, 4]);
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p1.y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                const angleRad = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+                ctx.beginPath();
+                ctx.arc(p1.x, p1.y, 30, angleRad < 0 ? angleRad : 0, angleRad < 0 ? 0 : angleRad, angleRad < 0);
+                ctx.stroke();
+              }
+            } else if (activeTool === 'path' && drawingPoints.length >= 2) {
+              ctx.beginPath();
+              ctx.moveTo(p1.x, p1.y);
+              for (let i = 1; i < drawingPoints.length; i++) {
+                const pNext = {
+                  x: chart.timeScale().timeToCoordinate(drawingPoints[i].time as any),
+                  y: mainSeries.priceToCoordinate(drawingPoints[i].price),
+                };
+                if (pNext.x !== null && pNext.y !== null) {
+                  ctx.lineTo(pNext.x, pNext.y);
+                }
+              }
+              ctx.stroke();
+            } else if (activeTool === 'curve' && (drawingPoints.length === 2 || drawingPoints.length === 3)) {
+              const p2 = {
+                x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
+                y: mainSeries.priceToCoordinate(drawingPoints[1].price),
+              };
+              if (drawingPoints.length === 2 && p2.x !== null && p2.y !== null) {
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.stroke();
+              } else if (drawingPoints.length === 3) {
+                const p3 = {
+                  x: chart.timeScale().timeToCoordinate(drawingPoints[2].time as any),
+                  y: mainSeries.priceToCoordinate(drawingPoints[2].price),
+                };
+                if (p2.x !== null && p2.y !== null && p3.x !== null && p3.y !== null) {
+                  ctx.beginPath();
+                  ctx.moveTo(p1.x, p1.y);
+                  ctx.quadraticCurveTo(p2.x, p2.y, p3.x, p3.y);
+                  ctx.stroke();
+                }
               }
             } else if (activeTool === 'parallelChannel' && (drawingPoints.length === 2 || drawingPoints.length === 3)) {
               const p2 = {
@@ -1008,7 +1178,7 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
       oscChartObjs.current.clear();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, candles.length, config.chartType, config.symbol, config.timeframe, containerSize.w, containerSize.h, indicators.length, oscIndicators.length, JSON.stringify(indicators)]);
+  }, [loading, candles.length, config.chartType, config.symbol, config.timeframe, initialSizeSet, indicators.length, oscIndicators.length, JSON.stringify(indicators)]);
 
   // Resize existing chart when container size changes (without full rebuild)
   useEffect(() => {
@@ -1159,12 +1329,12 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
       return; // Stop further processing
     }
 
-    if (['trend', 'rectangle', 'fib', 'ellipse', 'ray', 'arrow', 'extendedLine', 'ruler', 'brush'].includes(activeTool as string)) {
+    if (['trend', 'rectangle', 'fib', 'ellipse', 'ray', 'arrow', 'extendedLine', 'ruler', 'brush', 'infoLine', 'trendAngle'].includes(activeTool as string)) {
       if (!isDrawing) {
         setIsDrawing(true);
         setDrawingPoints(activeTool === 'brush' ? [point] : [point, point]);
       }
-    } else if (['parallelChannel', 'triangle'].includes(activeTool as string)) {
+    } else if (['parallelChannel', 'triangle', 'curve'].includes(activeTool as string)) {
       if (!isDrawing) {
         setIsDrawing(true);
         setDrawingPoints([point, point]);
@@ -1180,6 +1350,13 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
         setIsDrawing(false);
         setDrawingPoints([]);
         if (!isDrawingModeLocked) setActiveTool(null);
+      }
+    } else if (activeTool === 'path') {
+      if (!isDrawing) {
+        setIsDrawing(true);
+        setDrawingPoints([point, point]);
+      } else {
+        setDrawingPoints([...drawingPoints, point]);
       }
     } else if (activeTool === 'horizontal') {
       addDrawing({
@@ -1197,6 +1374,22 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
         properties: { color: currentColor, width: currentWidth },
       });
       if (!isDrawingModeLocked) setActiveTool(null);
+    } else if (activeTool === 'horizontalRay') {
+      addDrawing({
+        symbol: config.symbol,
+        type: 'horizontalRay',
+        points: [point],
+        properties: { color: currentColor, width: currentWidth },
+      });
+      if (!isDrawingModeLocked) setActiveTool(null);
+    } else if (activeTool === 'crossLine') {
+      addDrawing({
+        symbol: config.symbol,
+        type: 'crossLine',
+        points: [point],
+        properties: { color: currentColor, width: currentWidth },
+      });
+      if (!isDrawingModeLocked) setActiveTool(null);
     } else if (activeTool === 'text') {
       setTextModal({ open: true, x: e.clientX, y: e.clientY, time, price });
       if (!isDrawingModeLocked) setActiveTool(null);
@@ -1206,13 +1399,29 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
   const handleCanvasMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!isDrawing || !activeTool || !chartObj.current || !mainSeriesObj.current || !canvasRef.current || areDrawingsLocked) return;
 
-    if (['trend', 'rectangle', 'fib', 'ellipse', 'ray', 'arrow', 'extendedLine', 'ruler', 'brush'].includes(activeTool as string)) {
+    if (['trend', 'rectangle', 'fib', 'ellipse', 'ray', 'arrow', 'extendedLine', 'ruler', 'brush', 'infoLine', 'trendAngle'].includes(activeTool as string)) {
       if (drawingPoints.length >= 2) {
         addDrawing({
           symbol: config.symbol,
           type: activeTool as any,
           points: drawingPoints,
           properties: { color: currentColor, width: currentWidth, fillColor: 'rgba(41, 98, 255, 0.12)' },
+        });
+      }
+      setIsDrawing(false);
+      setDrawingPoints([]);
+      if (!isDrawingModeLocked) setActiveTool(null);
+    }
+  };
+
+  const handleCanvasDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (activeTool === 'path' && isDrawing) {
+      if (drawingPoints.length >= 2) {
+        addDrawing({
+          symbol: config.symbol,
+          type: 'path',
+          points: drawingPoints.slice(0, -1), // remove the last floating point
+          properties: { color: currentColor, width: currentWidth },
         });
       }
       setIsDrawing(false);
@@ -1241,14 +1450,14 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
       }
     }
 
-    if (['parallelChannel', 'triangle'].includes(activeTool as string)) {
+    if (['parallelChannel', 'triangle', 'curve'].includes(activeTool as string)) {
       if (drawingPoints.length === 2) {
         setDrawingPoints([drawingPoints[0], { time, price }]);
       } else if (drawingPoints.length === 3) {
         setDrawingPoints([drawingPoints[0], drawingPoints[1], { time, price }]);
       }
-    } else if (activeTool === 'brush') {
-      setDrawingPoints([...drawingPoints, { time, price }]);
+    } else if (['path', 'brush'].includes(activeTool as string)) {
+      setDrawingPoints([...drawingPoints.slice(0, -1), { time, price }]);
     } else {
       setDrawingPoints([drawingPoints[0], { time, price }]);
     }
@@ -1269,16 +1478,22 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
     setTextModal(null);
   };
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  };
+
   return (
     <div 
       ref={outerRef}
       onClick={() => setActiveChartId(config.id)}
-      className={`flex-1 w-full h-full min-w-0 min-h-0 border bg-[#131722] rounded-xl overflow-hidden shadow-lg select-none relative ${
+      onContextMenu={handleContextMenu}
+      className={`flex-1 w-full h-full min-w-0 min-h-0 border bg-card rounded-xl overflow-hidden shadow-lg select-none relative ${
         isActive ? 'border-primary ring-2 ring-primary/20' : 'border-border/60'
       }`}
     >
       {/* Chart Legend / HUD overlay */}
-      <div className="absolute top-3 left-4 z-30 pointer-events-auto flex flex-col gap-1.5 bg-[#131722]/85 backdrop-blur px-3 py-2 rounded-lg border border-border/40 max-w-[90%]">
+      <div className="absolute top-3 left-4 z-30 pointer-events-auto flex flex-col gap-1.5 bg-card/85 backdrop-blur px-3 py-2 rounded-lg border border-border/40 max-w-[90%]">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <div className="flex items-center gap-1.5">
             <span className="font-bold text-foreground text-sm tracking-wide">{config.symbol}</span>
@@ -1305,13 +1520,13 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
       </div>
 
       {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#131722]/60 backdrop-blur z-20">
+        <div className="absolute inset-0 flex items-center justify-center bg-card/60 backdrop-blur z-20">
           <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
         </div>
       )}
 
       {error && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#131722] z-20 p-6 text-center">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-card z-20 p-6 text-center">
           <p className="text-destructive font-semibold mb-2">{error}</p>
           <p className="text-xs text-muted-foreground">Double check your connection or try another symbol pair.</p>
         </div>
@@ -1353,6 +1568,7 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
           onMouseDown={handleCanvasMouseDown}
           onMouseMove={handleCanvasMouseMove}
           onMouseUp={handleCanvasMouseUp}
+          onDoubleClick={handleCanvasDoubleClick}
           className={`absolute top-0 left-0 z-20 w-full ${
             activeTool && !['crosshair', 'dot', 'arrowCursor'].includes(activeTool as string) && !areDrawingsLocked 
               ? `pointer-events-auto ${activeTool === 'eraser' ? '' : 'cursor-crosshair'}` 
@@ -1420,6 +1636,22 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <div 
+          className="fixed z-50 min-w-[160px] bg-card border border-border rounded-lg shadow-xl py-1 overflow-hidden"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+        >
+          <button
+            onClick={toggleStarred}
+            className="w-full px-4 py-2 text-sm text-left hover:bg-secondary transition flex items-center gap-2"
+          >
+            <Star className={`h-4 w-4 ${isStarred ? 'text-amber-500 fill-amber-500' : 'text-muted-foreground'}`} />
+            {isStarred ? 'Remove from Watchlist' : 'Add to Watchlist'}
+          </button>
         </div>
       )}
     </div>

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 export type IndicatorType = 
   | 'sma' | 'ema' | 'wma' | 'hma' | 'vwap' | 'bb' | 'supertrend'  // Overlay
@@ -27,11 +28,11 @@ export interface IndicatorInstance {
 }
 
 interface IndicatorState {
-  chartIndicators: Record<string, IndicatorInstance[]>;
-  addIndicator: (chartId: string, type: IndicatorType) => void;
-  removeIndicator: (chartId: string, id: string) => void;
-  updateIndicatorParams: (chartId: string, id: string, params: Partial<IndicatorInstance['params']>) => void;
-  updateIndicatorColor: (chartId: string, id: string, color: string) => void;
+  indicators: IndicatorInstance[];
+  addIndicator: (type: IndicatorType) => void;
+  removeIndicator: (id: string) => void;
+  updateIndicatorParams: (id: string, params: Partial<IndicatorInstance['params']>) => void;
+  updateIndicatorColor: (id: string, color: string) => void;
 }
 
 const DEFAULT_INDICATORS: IndicatorInstance[] = [
@@ -61,54 +62,49 @@ function makeIndicator(type: IndicatorType): IndicatorInstance {
   }
 }
 
-export const useIndicatorStore = create<IndicatorState>((set, get) => ({
-  chartIndicators: {
-    'chart-0': DEFAULT_INDICATORS,
-    'chart-1': [],
-    'chart-2': [],
-    'chart-3': [],
-  },
+export const useIndicatorStore = create<IndicatorState>()(
+  persist(
+    (set, get) => ({
+      indicators: DEFAULT_INDICATORS,
 
-  addIndicator: (chartId, type) => {
-    const { chartIndicators } = get();
-    const current = chartIndicators[chartId] || [];
-    set({ chartIndicators: { ...chartIndicators, [chartId]: [...current, makeIndicator(type)] } });
-  },
+      addIndicator: (type) => {
+        const { indicators } = get();
+        set({ indicators: [...indicators, makeIndicator(type)] });
+      },
 
-  removeIndicator: (chartId, id) => {
-    const { chartIndicators } = get();
-    const current = chartIndicators[chartId] || [];
-    set({ chartIndicators: { ...chartIndicators, [chartId]: current.filter(ind => ind.id !== id) } });
-  },
+      removeIndicator: (id) => {
+        const { indicators } = get();
+        set({ indicators: indicators.filter(ind => ind.id !== id) });
+      },
 
-  updateIndicatorParams: (chartId, id, params) => {
-    const { chartIndicators } = get();
-    const current = chartIndicators[chartId] || [];
-    set({
-      chartIndicators: {
-        ...chartIndicators,
-        [chartId]: current.map(ind => {
-          if (ind.id !== id) return ind;
-          const newParams = { ...ind.params, ...params };
-          let name = ind.name;
-          if (ind.type === 'sma'  && params.period)  name = `SMA ${params.period}`;
-          if (ind.type === 'ema'  && params.period)  name = `EMA ${params.period}`;
-          if (ind.type === 'wma'  && params.period)  name = `WMA ${params.period}`;
-          if (ind.type === 'hma'  && params.period)  name = `HMA ${params.period}`;
-          if (ind.type === 'bb'   && params.period)  name = `BB ${params.period}`;
-          if (ind.type === 'rsi'  && params.period)  name = `RSI ${params.period}`;
-          if (ind.type === 'atr'  && params.period)  name = `ATR ${params.period}`;
-          if (ind.type === 'cci'  && params.period)  name = `CCI ${params.period}`;
-          if (ind.type === 'williamsR' && params.period) name = `Williams %R ${params.period}`;
-          return { ...ind, name, params: newParams };
-        }),
-      }
-    });
-  },
+      updateIndicatorParams: (id, params) => {
+        const { indicators } = get();
+        set({
+          indicators: indicators.map(ind => {
+            if (ind.id !== id) return ind;
+            const newParams = { ...ind.params, ...params };
+            let name = ind.name;
+            if (ind.type === 'sma'  && params.period)  name = `SMA ${params.period}`;
+            if (ind.type === 'ema'  && params.period)  name = `EMA ${params.period}`;
+            if (ind.type === 'wma'  && params.period)  name = `WMA ${params.period}`;
+            if (ind.type === 'hma'  && params.period)  name = `HMA ${params.period}`;
+            if (ind.type === 'bb'   && params.period)  name = `BB ${params.period}`;
+            if (ind.type === 'rsi'  && params.period)  name = `RSI ${params.period}`;
+            if (ind.type === 'atr'  && params.period)  name = `ATR ${params.period}`;
+            if (ind.type === 'cci'  && params.period)  name = `CCI ${params.period}`;
+            if (ind.type === 'williamsR' && params.period) name = `Williams %R ${params.period}`;
+            return { ...ind, name, params: newParams };
+          })
+        });
+      },
 
-  updateIndicatorColor: (chartId, id, color) => {
-    const { chartIndicators } = get();
-    const current = chartIndicators[chartId] || [];
-    set({ chartIndicators: { ...chartIndicators, [chartId]: current.map(ind => ind.id === id ? { ...ind, color } : ind) } });
-  },
-}));
+      updateIndicatorColor: (id, color) => {
+        const { indicators } = get();
+        set({ indicators: indicators.map(ind => ind.id === id ? { ...ind, color } : ind) });
+      },
+    }),
+    {
+      name: 'marketview-indicators',
+    }
+  )
+);
