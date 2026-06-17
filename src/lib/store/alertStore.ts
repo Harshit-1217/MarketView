@@ -5,7 +5,7 @@ export interface Alert {
   id: string;
   symbol: string;
   type: 'price' | 'indicator';
-  condition: 'above' | 'below';
+  condition: 'above' | 'below' | 'crosses' | 'rsi_gt_70' | 'rsi_lt_30' | 'macd_cross' | 'ema_cross';
   value: number;
   isTriggered: boolean;
   createdAt: string;
@@ -20,7 +20,7 @@ interface AlertState {
   fetchAlerts: () => Promise<void>;
   createAlert: (alert: Omit<Alert, 'id' | 'isTriggered' | 'createdAt' | 'triggeredAt'>) => Promise<void>;
   deleteAlert: (id: string) => Promise<void>;
-  checkAlerts: (symbol: string, currentPrice: number) => void;
+  checkAlerts: (symbol: string, currentPrice: number, previousPrice?: number, indicators?: any) => void;
 }
 
 export const useAlertStore = create<AlertState>((set, get) => ({
@@ -136,15 +136,29 @@ export const useAlertStore = create<AlertState>((set, get) => ({
     }
   },
 
-  checkAlerts: (symbol, currentPrice) => {
+  checkAlerts: (symbol, currentPrice, previousPrice, indicators) => {
     const { alerts } = get();
     const sym = symbol.toUpperCase();
     
     // Find matching active alerts
     const triggered = alerts.filter((a) => {
       if (a.symbol !== sym) return false;
-      if (a.condition === 'above' && currentPrice >= a.value) return true;
-      if (a.condition === 'below' && currentPrice <= a.value) return true;
+      
+      if (a.type === 'price') {
+        if (a.condition === 'above' && currentPrice >= a.value) return true;
+        if (a.condition === 'below' && currentPrice <= a.value) return true;
+        if (a.condition === 'crosses' && previousPrice !== undefined) {
+          if ((previousPrice < a.value && currentPrice >= a.value) || 
+              (previousPrice > a.value && currentPrice <= a.value)) {
+            return true;
+          }
+        }
+      } else if (a.type === 'indicator' && indicators) {
+        if (a.condition === 'rsi_gt_70' && indicators.rsi && indicators.rsi > 70) return true;
+        if (a.condition === 'rsi_lt_30' && indicators.rsi && indicators.rsi < 30) return true;
+        // MACD and EMA crossovers would require previous indicator states, which we might not have in a simple tick check
+        // For now, evaluate them to true if the condition is met on the current tick if we implement it later
+      }
       return false;
     });
 
@@ -171,8 +185,18 @@ export const useAlertStore = create<AlertState>((set, get) => ({
           // Ignore audio blocked contexts
         }
 
-        // Show window alert
-        window.alert(`🚨 ALERT TRIGGERED!\n${alert.symbol} price crossed ${alert.condition} ${alert.value}`);
+        // Native Browser Notification
+        const title = `🚨 ALERT TRIGGERED: ${alert.symbol}`;
+        const body = alert.type === 'price' 
+          ? `Price crossed ${alert.condition} ${alert.value}`
+          : `Indicator condition ${alert.condition} met`;
+
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(title, { body });
+        } else {
+          // Fallback to basic window alert if permissions aren't granted
+          window.alert(`${title}\n${body}`);
+        }
       }
 
       // Update local state: move to history

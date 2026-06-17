@@ -15,7 +15,7 @@ const INDICATOR_CATALOG: {
   label: string;
   short: string;
   desc: string;
-  category: 'overlay' | 'oscillator' | 'volume';
+  category: 'overlay' | 'oscillator' | 'volume' | 'structure';
   color: string;
 }[] = [
   // ─── Overlays ────────────────────────────────────────────────────────
@@ -25,28 +25,33 @@ const INDICATOR_CATALOG: {
   { type: 'hma',       label: 'Hull Moving Average',            short: 'HMA',       desc: 'Smooth, low-lag MA by Alan Hull. Excellent for trend direction and entry timing.',               category: 'overlay',    color: '#6fcf97' },
   { type: 'vwap',      label: 'Volume Weighted Avg Price',      short: 'VWAP',      desc: 'Daily reset price weighted by volume. Used by institutions as a fair-value benchmark.',          category: 'overlay',    color: '#27ae60' },
   { type: 'bb',        label: 'Bollinger Bands',                short: 'BB',        desc: 'Upper & lower bands at ±N std deviations around SMA. Measures volatility and mean-reversion.',  category: 'overlay',    color: '#2d9cdb' },
+  { type: 'supertrend', label: 'Supertrend',                    short: 'ST',        desc: 'ATR-based trend overlay. Green below price = uptrend, red above = downtrend.',                   category: 'overlay',    color: '#26a69a' },
   // ─── Oscillators ─────────────────────────────────────────────────────
   { type: 'rsi',       label: 'Relative Strength Index',        short: 'RSI',       desc: 'Momentum oscillator 0–100. >70 overbought, <30 oversold (Wilder smoothing).',                   category: 'oscillator', color: '#e0e0e0' },
   { type: 'macd',      label: 'MACD',                           short: 'MACD',      desc: 'Difference of fast/slow EMAs with a signal EMA and histogram. Classic trend momentum.',         category: 'oscillator', color: '#2962ff' },
   { type: 'atr',       label: 'Average True Range',             short: 'ATR',       desc: 'Wilder\'s volatility measure using the true range of each bar. Essential for position sizing.',  category: 'oscillator', color: '#f2c94c' },
   { type: 'stochRsi',  label: 'Stochastic RSI',                 short: 'Stoch RSI', desc: 'Stochastic formula applied to RSI. Faster than RSI alone — %K and %D lines.',                  category: 'oscillator', color: '#2d9cdb' },
+  { type: 'stochastic', label: 'Stochastic Oscillator',         short: 'Stoch',     desc: 'Momentum oscillator comparing close to high-low range. %K and %D lines, 0–100.',               category: 'oscillator', color: '#f59e0b' },
   { type: 'cci',       label: 'Commodity Channel Index',        short: 'CCI',       desc: 'Measures deviation from typical price mean. >100 signals strong trend, <-100 reversal zone.',  category: 'oscillator', color: '#bb6bd9' },
   { type: 'williamsR', label: 'Williams %R',                    short: '%R',        desc: 'Momentum oscillator -100–0. Near 0 = overbought, near -100 = oversold.',                        category: 'oscillator', color: '#f97316' },
   // ─── Volume ──────────────────────────────────────────────────────────
   { type: 'obv',       label: 'On-Balance Volume',              short: 'OBV',       desc: 'Cumulative volume direction indicator. Divergence from price often precedes reversals.',        category: 'volume',     color: '#06b6d4' },
+  // ─── Market Structure ────────────────────────────────────────────────
+  { type: 'pivotPoints', label: 'Pivot Points',                 short: 'PP',        desc: 'Support/resistance levels calculated from previous bar OHLC. Includes R1-R3 and S1-S3.',       category: 'structure',  color: '#a78bfa' },
 ];
 
 const CATEGORY_META = {
   overlay:    { label: 'Moving Averages & Overlays', icon: TrendingUp,  color: '#3b82f6' },
   oscillator: { label: 'Oscillators',                icon: Activity,    color: '#8b5cf6' },
   volume:     { label: 'Volume',                     icon: BarChart2,   color: '#06b6d4' },
+  structure:  { label: 'Market Structure',           icon: Layers,      color: '#a78bfa' },
 };
 
 export default function IndicatorDialog({ chartId, isOpen, onClose }: IndicatorDialogProps) {
   const { chartIndicators, addIndicator, removeIndicator, updateIndicatorParams, updateIndicatorColor } = useIndicatorStore();
   const activeIndicators = chartIndicators[chartId] || [];
   const [search, setSearch] = useState('');
-  const [activeCategory, setActiveCategory] = useState<'all' | 'overlay' | 'oscillator' | 'volume'>('all');
+  const [activeCategory, setActiveCategory] = useState<'all' | 'overlay' | 'oscillator' | 'volume' | 'structure'>('all');
 
   if (!isOpen) return null;
 
@@ -58,7 +63,7 @@ export default function IndicatorDialog({ chartId, isOpen, onClose }: IndicatorD
     return matchSearch && matchCat;
   });
 
-  const grouped = (['overlay', 'oscillator', 'volume'] as const).map(cat => ({
+  const grouped = (['overlay', 'oscillator', 'volume', 'structure'] as const).map(cat => ({
     cat,
     items: filtered.filter(i => i.category === cat),
   })).filter(g => g.items.length > 0);
@@ -114,7 +119,7 @@ export default function IndicatorDialog({ chartId, isOpen, onClose }: IndicatorD
             />
           </div>
           <div className="flex items-center gap-1.5 rounded-xl p-1" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-            {(['all', 'overlay', 'oscillator', 'volume'] as const).map(cat => (
+            {(['all', 'overlay', 'oscillator', 'volume', 'structure'] as const).map(cat => (
               <button
                 key={cat}
                 onClick={() => setActiveCategory(cat)}

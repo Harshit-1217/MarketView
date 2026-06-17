@@ -13,7 +13,8 @@ import {
   RefreshCw,
   Search,
   Loader2,
-  Star
+  Star,
+  Columns2
 } from 'lucide-react';
 
 /* ─── Reusable tooltip ──────────────────────────────────────────────────── */
@@ -300,7 +301,7 @@ export default function QuickSettings({ onOpenIndicators }: QuickSettingsProps) 
         {/* Grid layouts configuration */}
         <div className="flex items-center p-0.5 rounded-xl"
           style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.07)' }}>
-          {([{ id: '1', label: 'Single chart', Icon: Square }, { id: '2', label: 'Split 2 charts', Icon: Layout }, { id: '4', label: '4-grid charts', Icon: Grid2X2 }] as const).map(({ id, label, Icon }) => (
+          {([{ id: '1', label: 'Single chart', Icon: Square }, { id: '2', label: 'Split 2 charts', Icon: Columns2 }, { id: '4', label: '4-grid charts', Icon: Grid2X2 }] as const).map(({ id, label, Icon }) => (
             <QSTooltip key={id} label={label}>
               <button
                 onClick={() => setLayout(id)}

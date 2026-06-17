@@ -62,10 +62,7 @@ export default function SettingsPage() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
-      {/* 1. Sidebar Nav */}
-      <Sidebar />
-
-      {/* 2. Settings main container */}
+      {/* 1. Settings main container */}
       <div className="flex-grow min-w-0 flex flex-col h-full bg-background overflow-y-auto">
         {/* Header */}
         <div className="h-16 border-b border-border bg-card/40 backdrop-blur-md flex items-center justify-between px-6 shrink-0 z-10 w-full select-none">
@@ -225,6 +222,9 @@ export default function SettingsPage() {
           </section>
         </div>
       </div>
+
+      {/* 2. Sidebar Nav */}
+      <Sidebar />
     </div>
   );
 }

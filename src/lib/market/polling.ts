@@ -5,36 +5,56 @@ type CandleCallback = (candle: Candle, isFinal: boolean) => void;
 interface Subscription {
   symbol: string;
   timeframe: string;
-  callback: CandleCallback;
+  callbacks: Set<CandleCallback>;
 }
 
 class MarketPollingManager {
   private subscriptions: Map<string, Subscription> = new Map();
   private pollingIntervals: Map<string, any> = new Map();
 
-  public subscribe(symbol: string, timeframe: string, callback: CandleCallback) {
+  public subscribe(symbol: string, timeframe: string, callback: CandleCallback): () => void {
     const sym = symbol.toLowerCase();
     const interval = TIMEFRAME_MAP[timeframe] || '1h';
     const streamName = `${sym}@kline_${interval}`;
     
-    this.subscriptions.set(streamName, { symbol, timeframe, callback });
-    this.startPolling(symbol, timeframe, callback);
+    let sub = this.subscriptions.get(streamName);
+    if (!sub) {
+      sub = { symbol, timeframe, callbacks: new Set() };
+      this.subscriptions.set(streamName, sub);
+    }
+    
+    sub.callbacks.add(callback);
+
+    if (!this.pollingIntervals.has(streamName)) {
+      this.startPolling(streamName, symbol, timeframe);
+    }
+
+    return () => {
+      this.unsubscribe(symbol, timeframe, callback);
+    };
   }
 
-  public unsubscribe(symbol: string, timeframe: string) {
+  public unsubscribe(symbol: string, timeframe: string, callback?: CandleCallback) {
     const sym = symbol.toLowerCase();
     const interval = TIMEFRAME_MAP[timeframe] || '1h';
     const streamName = `${sym}@kline_${interval}`;
     
-    this.subscriptions.delete(streamName);
-    this.stopPolling(streamName);
+    const sub = this.subscriptions.get(streamName);
+    if (sub) {
+      if (callback) {
+        sub.callbacks.delete(callback);
+      } else {
+        sub.callbacks.clear();
+      }
+
+      if (sub.callbacks.size === 0) {
+        this.subscriptions.delete(streamName);
+        this.stopPolling(streamName);
+      }
+    }
   }
 
-  private startPolling(symbol: string, timeframe: string, callback: CandleCallback) {
-    const sym = symbol.toLowerCase();
-    const interval = TIMEFRAME_MAP[timeframe] || '1h';
-    const streamName = `${sym}@kline_${interval}`;
-
+  private startPolling(streamName: string, symbol: string, timeframe: string) {
     if (this.pollingIntervals.has(streamName)) {
       clearInterval(this.pollingIntervals.get(streamName));
     }
@@ -48,13 +68,19 @@ class MarketPollingManager {
           const data = await res.json();
           if (data && data.length > 0) {
             const latestCandle = data[data.length - 1];
-            callback(latestCandle, false);
+            const sub = this.subscriptions.get(streamName);
+            if (sub) {
+              sub.callbacks.forEach(cb => cb(latestCandle, false));
+            }
           }
         }
       } catch (err) {
         console.error('Polling error for', symbol, err);
       }
     };
+
+    // Initial poll
+    poll();
 
     // Poll every 10 seconds
     const intervalId = setInterval(poll, 10000);

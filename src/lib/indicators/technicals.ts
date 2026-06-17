@@ -284,3 +284,121 @@ export function calculateIchimoku(
   }
   return result;
 }
+
+export interface SupertrendPoint {
+  time: number;
+  value: number;
+  direction: 'up' | 'down';
+}
+
+/** 15. Supertrend */
+export function calculateSupertrend(data: Candle[], period = 10, multiplier = 3): SupertrendPoint[] {
+  const result: SupertrendPoint[] = [];
+  const atrData = calculateATR(data, period);
+  if (atrData.length === 0) return result;
+
+  const atrMap = new Map(atrData.map(p => [p.time, p.value]));
+
+  let prevUpperBand = 0;
+  let prevLowerBand = 0;
+  let prevSupertrend = 0;
+  let prevDirection: 'up' | 'down' = 'up';
+  let isFirst = true;
+
+  for (let i = period; i < data.length; i++) {
+    const atr = atrMap.get(data[i].time);
+    if (atr === undefined) continue;
+
+    const hl2 = (data[i].high + data[i].low) / 2;
+    let upperBand = hl2 + multiplier * atr;
+    let lowerBand = hl2 - multiplier * atr;
+
+    if (!isFirst) {
+      upperBand = upperBand < prevUpperBand || data[i - 1].close > prevUpperBand ? upperBand : prevUpperBand;
+      lowerBand = lowerBand > prevLowerBand || data[i - 1].close < prevLowerBand ? lowerBand : prevLowerBand;
+    }
+
+    let direction: 'up' | 'down';
+    let supertrendVal: number;
+
+    if (isFirst) {
+      direction = data[i].close > upperBand ? 'up' : 'down';
+      supertrendVal = direction === 'up' ? lowerBand : upperBand;
+    } else {
+      if (prevSupertrend === prevUpperBand) {
+        direction = data[i].close > upperBand ? 'up' : 'down';
+      } else {
+        direction = data[i].close < lowerBand ? 'down' : 'up';
+      }
+      supertrendVal = direction === 'up' ? lowerBand : upperBand;
+    }
+
+    result.push({ time: data[i].time, value: supertrendVal, direction });
+    prevUpperBand = upperBand;
+    prevLowerBand = lowerBand;
+    prevSupertrend = supertrendVal;
+    prevDirection = direction;
+    isFirst = false;
+  }
+  return result;
+}
+
+export interface StochasticPoint {
+  time: number;
+  k: number;
+  d: number;
+}
+
+/** 16. Stochastic Oscillator */
+export function calculateStochastic(data: Candle[], kPeriod = 14, dPeriod = 3): StochasticPoint[] {
+  const result: StochasticPoint[] = [];
+  if (data.length < kPeriod) return result;
+
+  const kValues: SingleValuePoint[] = [];
+  for (let i = kPeriod - 1; i < data.length; i++) {
+    const slice = data.slice(i - kPeriod + 1, i + 1);
+    const highH = Math.max(...slice.map(c => c.high));
+    const lowL = Math.min(...slice.map(c => c.low));
+    const k = highH - lowL > 0 ? ((data[i].close - lowL) / (highH - lowL)) * 100 : 50;
+    kValues.push({ time: data[i].time, value: k });
+  }
+
+  // %D = SMA of %K
+  if (kValues.length < dPeriod) return result;
+  for (let i = dPeriod - 1; i < kValues.length; i++) {
+    let sum = 0;
+    for (let j = 0; j < dPeriod; j++) sum += kValues[i - j].value;
+    result.push({ time: kValues[i].time, k: kValues[i].value, d: sum / dPeriod });
+  }
+  return result;
+}
+
+export interface PivotPointData {
+  time: number;
+  pp: number;
+  r1: number;
+  r2: number;
+  r3: number;
+  s1: number;
+  s2: number;
+  s3: number;
+}
+
+/** 17. Pivot Points (Standard) */
+export function calculatePivotPoints(data: Candle[]): PivotPointData[] {
+  const result: PivotPointData[] = [];
+  if (data.length < 2) return result;
+
+  for (let i = 1; i < data.length; i++) {
+    const prev = data[i - 1];
+    const pp = (prev.high + prev.low + prev.close) / 3;
+    const r1 = 2 * pp - prev.low;
+    const s1 = 2 * pp - prev.high;
+    const r2 = pp + (prev.high - prev.low);
+    const s2 = pp - (prev.high - prev.low);
+    const r3 = prev.high + 2 * (pp - prev.low);
+    const s3 = prev.low - 2 * (prev.high - pp);
+    result.push({ time: data[i].time, pp, r1, r2, r3, s1, s2, s3 });
+  }
+  return result;
+}

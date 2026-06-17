@@ -49,7 +49,8 @@ export default function RightPanel() {
 
   // Alerts hooks
   const { alerts, history, fetchAlerts, createAlert, deleteAlert, checkAlerts } = useAlertStore();
-  const [alertCondition, setAlertCondition] = useState<'above' | 'below'>('above');
+  const [alertType, setAlertType] = useState<'price' | 'indicator'>('price');
+  const [alertCondition, setAlertCondition] = useState<'above' | 'below' | 'crosses' | 'rsi_gt_70' | 'rsi_lt_30' | 'macd_cross' | 'ema_cross'>('above');
   const [alertValue, setAlertValue] = useState('');
 
   // Chart hooks
@@ -59,6 +60,8 @@ export default function RightPanel() {
 
   // Live price tracking
   const [livePrices, setLivePrices] = useState<Record<string, number>>({});
+  const [liveChanges, setLiveChanges] = useState<Record<string, number>>({});
+  const [sortBy, setSortBy] = useState<'none' | 'price_asc' | 'price_desc' | 'change_asc' | 'change_desc'>('none');
 
   // Initialize
   useEffect(() => {
@@ -71,18 +74,40 @@ export default function RightPanel() {
     if (!marketManager || symbols.length === 0) return;
     const handleTick = (sym: string) => (candle: any) => {
       const price = candle.close;
+      const change = candle.open > 0 ? ((candle.close - candle.open) / candle.open) * 100 : 0;
       setLivePrices((prev) => ({ ...prev, [sym]: price }));
+      setLiveChanges((prev) => ({ ...prev, [sym]: change }));
       checkAlerts(sym, price);
     };
+    const unsubs: (() => void)[] = [];
     symbols.forEach((sym) => {
-      marketManager?.subscribe(sym, '1m', handleTick(sym));
+      if (marketManager) {
+        const unsub = marketManager.subscribe(sym, '1D', handleTick(sym));
+        unsubs.push(unsub);
+      }
     });
+
     return () => {
-      symbols.forEach((sym) => {
-        marketManager?.unsubscribe(sym, '1m');
-      });
+      unsubs.forEach((unsub) => unsub());
     };
   }, [symbols, checkAlerts]);
+
+  // Sort symbols
+  const sortedSymbols = [...symbols].sort((a, b) => {
+    if (sortBy === 'none') return 0;
+    const priceA = livePrices[a] || 0;
+    const priceB = livePrices[b] || 0;
+    const changeA = liveChanges[a] || 0;
+    const changeB = liveChanges[b] || 0;
+
+    switch (sortBy) {
+      case 'price_asc': return priceA - priceB;
+      case 'price_desc': return priceB - priceA;
+      case 'change_asc': return changeA - changeB;
+      case 'change_desc': return changeB - changeA;
+      default: return 0;
+    }
+  });
 
   // Add symbol handler
   const handleAddSymbol = (e: React.FormEvent) => {
@@ -119,11 +144,17 @@ export default function RightPanel() {
 
   const handleCreateAlert = (e: React.FormEvent) => {
     e.preventDefault();
-    const val = parseFloat(alertValue);
-    if (isNaN(val) || val <= 0) return;
+    const val = alertType === 'price' ? parseFloat(alertValue) : 0;
+    if (alertType === 'price' && (isNaN(val) || val <= 0)) return;
+    
+    // Request notification permission if not already granted
+    if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+      Notification.requestPermission();
+    }
+
     createAlert({
       symbol: activeSymbol,
-      type: 'price',
+      type: alertType,
       condition: alertCondition,
       value: val,
     });
@@ -339,6 +370,27 @@ export default function RightPanel() {
               </button>
             </form>
 
+            {/* Sort Controls */}
+            {symbols.length > 0 && (
+              <div className="flex gap-2 pb-1">
+                <button 
+                  onClick={() => setSortBy(prev => prev === 'price_desc' ? 'price_asc' : 'price_desc')}
+                  className={`flex-1 py-1 rounded text-[10px] font-bold ${sortBy.startsWith('price') ? 'bg-primary/20 text-primary' : 'bg-secondary text-muted-foreground'}`}
+                >
+                  Price {sortBy === 'price_asc' ? '↑' : sortBy === 'price_desc' ? '↓' : ''}
+                </button>
+                <button 
+                  onClick={() => setSortBy(prev => prev === 'change_desc' ? 'change_asc' : 'change_desc')}
+                  className={`flex-1 py-1 rounded text-[10px] font-bold ${sortBy.startsWith('change') ? 'bg-primary/20 text-primary' : 'bg-secondary text-muted-foreground'}`}
+                >
+                  Change {sortBy === 'change_asc' ? '↑' : sortBy === 'change_desc' ? '↓' : ''}
+                </button>
+                {sortBy !== 'none' && (
+                  <button onClick={() => setSortBy('none')} className="px-2 py-1 rounded text-[10px] bg-secondary text-muted-foreground hover:bg-secondary/80">Clear</button>
+                )}
+              </div>
+            )}
+
             {/* Symbol list */}
             <div className="flex-1 overflow-y-auto space-y-1 pr-1">
               {symbols.length === 0 && (
@@ -347,9 +399,12 @@ export default function RightPanel() {
                   <p className="text-xs text-muted-foreground">No symbols yet.<br />Add one above or star a chart.</p>
                 </div>
               )}
-              {symbols.map((sym) => {
+              {sortedSymbols.map((sym) => {
                 const isSelected = activeSymbol === sym;
                 const price = livePrices[sym];
+                const change = liveChanges[sym];
+                const isPositive = change !== undefined && change >= 0;
+                
                 return (
                   <div
                     key={sym}
@@ -366,9 +421,16 @@ export default function RightPanel() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-semibold text-foreground">
-                        {price !== undefined ? price.toFixed(2) : '—'}
-                      </span>
+                      <div className="flex flex-col items-end gap-0.5">
+                        <span className="font-mono text-xs font-semibold text-foreground">
+                          {price !== undefined ? price.toFixed(2) : '—'}
+                        </span>
+                        {change !== undefined && (
+                          <span className={`text-[10px] font-bold ${isPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {isPositive ? '+' : ''}{change.toFixed(2)}%
+                          </span>
+                        )}
+                      </div>
                       <button
                         onClick={(e) => { e.stopPropagation(); removeSymbol(sym); }}
                         className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition p-1 hover:bg-destructive/10 rounded cursor-pointer"
@@ -393,48 +455,50 @@ export default function RightPanel() {
 
               <form onSubmit={handleCreateAlert} className="space-y-3">
                 <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAlertCondition('above')}
-                    className={`flex-1 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-1 ${
-                      alertCondition === 'above'
-                        ? 'bg-bull/10 text-bull border-bull/20'
-                        : 'border-border text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    <TrendingUp className="h-3 w-3" />
-                    <span>Price Above</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setAlertCondition('below')}
-                    className={`flex-1 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-1 ${
-                      alertCondition === 'below'
-                        ? 'bg-bear/10 text-bear border-bear/20'
-                        : 'border-border text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    <TrendingDown className="h-3 w-3" />
-                    <span>Price Below</span>
-                  </button>
+                  <button type="button" onClick={() => { setAlertType('price'); setAlertCondition('above'); }} className={`flex-1 py-1 text-xs font-bold rounded transition ${alertType === 'price' ? 'bg-primary/20 text-primary' : 'bg-secondary text-muted-foreground'}`}>Price</button>
+                  <button type="button" onClick={() => { setAlertType('indicator'); setAlertCondition('rsi_gt_70'); }} className={`flex-1 py-1 text-xs font-bold rounded transition ${alertType === 'indicator' ? 'bg-primary/20 text-primary' : 'bg-secondary text-muted-foreground'}`}>Indicator</button>
                 </div>
 
-                <input
-                  type="number"
-                  step="any"
-                  required
-                  placeholder={`Trigger price (e.g. ${livePrices[activeSymbol]?.toFixed(2) || '0.00'})`}
-                  value={alertValue}
-                  onChange={(e) => setAlertValue(e.target.value)}
-                  className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary font-mono font-semibold"
-                />
+                {alertType === 'price' ? (
+                  <>
+                    <select
+                      value={alertCondition}
+                      onChange={(e) => setAlertCondition(e.target.value as any)}
+                      className="w-full bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold cursor-pointer appearance-none"
+                    >
+                      <option value="above">Price Crosses Above</option>
+                      <option value="below">Price Crosses Below</option>
+                      <option value="crosses">Price Crosses Value</option>
+                    </select>
+
+                    <input
+                      type="number"
+                      step="any"
+                      required
+                      placeholder={`Trigger price (e.g. ${livePrices[activeSymbol]?.toFixed(2) || '0.00'})`}
+                      value={alertValue}
+                      onChange={(e) => setAlertValue(e.target.value)}
+                      className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary font-mono font-semibold"
+                    />
+                  </>
+                ) : (
+                  <select
+                    value={alertCondition}
+                    onChange={(e) => setAlertCondition(e.target.value as any)}
+                    className="w-full bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold cursor-pointer appearance-none"
+                  >
+                    <option value="rsi_gt_70">RSI Crosses Above 70</option>
+                    <option value="rsi_lt_30">RSI Crosses Below 30</option>
+                    <option value="macd_cross">MACD Crossover</option>
+                    <option value="ema_cross">EMA Crossover</option>
+                  </select>
+                )}
 
                 <button
                   type="submit"
                   className="w-full py-2 bg-primary hover:bg-primary/95 text-white font-semibold rounded-lg text-xs transition cursor-pointer"
                 >
-                  Create Price Alert
+                  Create Alert
                 </button>
               </form>
             </div>

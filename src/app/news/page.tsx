@@ -80,9 +80,6 @@ export default function NewsPage() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
-      {/* 1. Navigation Sidebar */}
-      <Sidebar />
-
       {/* 2. Main News feed container */}
       <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
         {/* Header bar */}
@@ -221,6 +218,9 @@ export default function NewsPage() {
           )}
         </div>
       </div>
+
+      {/* 1. Navigation Sidebar */}
+      <Sidebar />
     </div>
   );
 }
