@@ -49,15 +49,18 @@ export function calculateSMA(data: Candle[], period: number): SingleValuePoint[]
 export function calculateEMA(data: Candle[], period: number): SingleValuePoint[] {
   const result: SingleValuePoint[] = [];
   if (data.length < period) return result;
+
   const k = 2 / (period + 1);
-  let sum = 0;
-  for (let i = 0; i < period; i++) sum += data[i].close;
-  let prevEma = sum / period;
-  result.push({ time: data[period - 1].time, value: prevEma });
+  let ema = 0;
+
+  // Initial SMA for first EMA point
+  for (let i = 0; i < period; i++) ema += data[i].close;
+  ema /= period;
+  result.push({ time: data[period - 1].time, value: ema });
+
   for (let i = period; i < data.length; i++) {
-    const currentEma = (data[i].close - prevEma) * k + prevEma;
-    result.push({ time: data[i].time, value: currentEma });
-    prevEma = currentEma;
+    ema = (data[i].close - ema) * k + ema;
+    result.push({ time: data[i].time, value: ema });
   }
   return result;
 }
@@ -66,13 +69,14 @@ export function calculateEMA(data: Candle[], period: number): SingleValuePoint[]
 export function calculateWMA(data: Candle[], period: number): SingleValuePoint[] {
   const result: SingleValuePoint[] = [];
   if (data.length < period) return result;
-  const denominator = (period * (period + 1)) / 2;
+  
+  const weightSum = (period * (period + 1)) / 2;
   for (let i = period - 1; i < data.length; i++) {
     let sum = 0;
     for (let j = 0; j < period; j++) {
       sum += data[i - j].close * (period - j);
     }
-    result.push({ time: data[i].time, value: sum / denominator });
+    result.push({ time: data[i].time, value: sum / weightSum });
   }
   return result;
 }

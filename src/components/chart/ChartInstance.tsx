@@ -1008,7 +1008,7 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
       oscChartObjs.current.clear();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, candles.length, config.chartType, config.symbol, config.timeframe, containerSize.w, containerSize.h, indicators.length, oscIndicators.length]);
+  }, [loading, candles.length, config.chartType, config.symbol, config.timeframe, containerSize.w, containerSize.h, indicators.length, oscIndicators.length, JSON.stringify(indicators)]);
 
   // Resize existing chart when container size changes (without full rebuild)
   useEffect(() => {

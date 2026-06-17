@@ -56,8 +56,8 @@ export async function updateSession(request: NextRequest) {
 
     // If not approved and trying to access anything other than /pending, / (and basic static assets which the matcher excludes)
     if (!isApproved && url.pathname !== '/pending' && url.pathname !== '/' && !url.pathname.startsWith('/api/')) {
-      url.pathname = '/pending';
-      return NextResponse.redirect(url);
+      // url.pathname = '/pending';
+      // return NextResponse.redirect(url);
     }
 
     // If approved and trying to access auth pages or pending page
