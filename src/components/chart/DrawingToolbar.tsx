@@ -56,7 +56,6 @@ function Tooltip({ children, label, shortcut, side = 'right' }: {
         `}
       >
         <div
-          className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-xl"
           className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-xl bg-card border border-border text-foreground"
           style={{
             boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
@@ -73,7 +72,6 @@ function Tooltip({ children, label, shortcut, side = 'right' }: {
         {/* Arrow */}
         {side === 'right' && (
           <div className="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0"
-            className="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0"
             style={{
               borderTop: '5px solid transparent',
               borderBottom: '5px solid transparent',
@@ -107,7 +105,7 @@ const WIDTHS = [
 
 /* ─── Tool Categories ───────────────────────────────────────────────────── */
 
-type ToolItem = { id: DrawingTool | 'select'; name: string; shortcut?: string; icon: React.ComponentType<any> };
+type ToolItem = { id: DrawingTool | 'select' | null; name: string; shortcut?: string; icon: React.ComponentType<{ className?: string }> };
 
 const CATEGORIES: { id: string; defaultTool: DrawingTool | 'select'; items: ToolItem[] }[] = [
   {
@@ -252,7 +250,7 @@ export default function DrawingToolbar() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [setActiveTool, undo, redo]);
 
-  const renderToolButton = (isSelected: boolean, Icon: React.ComponentType<any>, onClick: () => void, isFlyoutItem = false, label = "") => (
+  const renderToolButton = (isSelected: boolean, Icon: React.ComponentType<{ className?: string }>, onClick: () => void, isFlyoutItem = false, label = "") => (
     <button
       onClick={onClick}
       className={`relative flex items-center transition-all cursor-pointer overflow-hidden ${
@@ -307,7 +305,7 @@ export default function DrawingToolbar() {
                         {renderToolButton(
                           isSelected, 
                           item.icon, 
-                          () => handleToolClick(category.id, item.id as any), 
+                          () => handleToolClick(category.id, item.id as DrawingTool | 'select'), 
                           true, 
                           item.name
                         )}

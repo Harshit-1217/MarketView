@@ -280,12 +280,12 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
       }
 
       if (config.chartType === 'candlestick') {
-        const validCandles = candles.filter(c => c && typeof c.time === 'number' && typeof c.close === 'number');
+        const validCandles = candles.filter(c => c && (typeof c.time === 'number' || typeof c.time === 'string') && typeof c.close === 'number');
         mainSeries.setData(validCandles);
       } else {
         // Area and Line series require { time, value } format
         const validLineData = candles
-          .filter(c => c && typeof c.time === 'number' && typeof c.close === 'number')
+          .filter(c => c && (typeof c.time === 'number' || typeof c.time === 'string') && typeof c.close === 'number')
           .map(c => ({ time: c.time, value: c.close }));
         mainSeries.setData(validLineData);
       }
@@ -809,10 +809,10 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
           } else if (drawing.type === 'path' && points.length >= 2) {
             ctx.beginPath();
             if (points[0].x !== null && points[0].y !== null) {
-              ctx.moveTo(points[0].x, points[0].y);
+              ctx.moveTo(points[0].x as number, points[0].y as number);
               for (let i = 1; i < points.length; i++) {
                 if (points[i].x !== null && points[i].y !== null) {
-                  ctx.lineTo(points[i].x, points[i].y);
+                  ctx.lineTo(points[i].x as number, points[i].y as number);
                 }
               }
               ctx.stroke();
@@ -821,8 +821,8 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
             const [p1, p2, p3] = points;
             if (p1.x !== null && p1.y !== null && p2.x !== null && p2.y !== null && p3.x !== null && p3.y !== null) {
               ctx.beginPath();
-              ctx.moveTo(p1.x, p1.y);
-              ctx.quadraticCurveTo(p2.x, p2.y, p3.x, p3.y);
+              ctx.moveTo(p1.x as number, p1.y as number);
+              ctx.quadraticCurveTo(p2.x as number, p2.y as number, p3.x as number, p3.y as number);
               ctx.stroke();
             }
           }
@@ -969,14 +969,14 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
               }
             } else if (activeTool === 'path' && drawingPoints.length >= 2) {
               ctx.beginPath();
-              ctx.moveTo(p1.x, p1.y);
+              ctx.moveTo(p1.x as number, p1.y as number);
               for (let i = 1; i < drawingPoints.length; i++) {
                 const pNext = {
                   x: chart.timeScale().timeToCoordinate(drawingPoints[i].time as any),
                   y: mainSeries.priceToCoordinate(drawingPoints[i].price),
                 };
                 if (pNext.x !== null && pNext.y !== null) {
-                  ctx.lineTo(pNext.x, pNext.y);
+                  ctx.lineTo(pNext.x as number, pNext.y as number);
                 }
               }
               ctx.stroke();
@@ -987,8 +987,8 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
               };
               if (drawingPoints.length === 2 && p2.x !== null && p2.y !== null) {
                 ctx.beginPath();
-                ctx.moveTo(p1.x, p1.y);
-                ctx.lineTo(p2.x, p2.y);
+                ctx.moveTo(p1.x as number, p1.y as number);
+                ctx.lineTo(p2.x as number, p2.y as number);
                 ctx.stroke();
               } else if (drawingPoints.length === 3) {
                 const p3 = {
@@ -997,8 +997,8 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
                 };
                 if (p2.x !== null && p2.y !== null && p3.x !== null && p3.y !== null) {
                   ctx.beginPath();
-                  ctx.moveTo(p1.x, p1.y);
-                  ctx.quadraticCurveTo(p2.x, p2.y, p3.x, p3.y);
+                  ctx.moveTo(p1.x as number, p1.y as number);
+                  ctx.quadraticCurveTo(p2.x as number, p2.y as number, p3.x as number, p3.y as number);
                   ctx.stroke();
                 }
               }

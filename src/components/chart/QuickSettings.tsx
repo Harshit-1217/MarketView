@@ -71,7 +71,7 @@ export default function QuickSettings({ onOpenIndicators }: QuickSettingsProps) 
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const timeframes = ['1m', '5m', '15m', '1h', '4h', '1D', '1W', '1M'];
+  const timeframes = ['1m', '5m', '15m', '30m', '1h', '1D', '1W', '1M'];
   const chartTypes: { id: ChartSeriesType; label: string }[] = [
     { id: 'candlestick', label: 'Candles' },
     { id: 'line', label: 'Line' },

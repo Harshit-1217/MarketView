@@ -11,8 +11,8 @@ function getYahooInterval(timeframe: string): "1m" | "2m" | "5m" | "15m" | "30m"
     case '1m': return '1m';
     case '5m': return '5m';
     case '15m': return '15m';
+    case '30m': return '30m';
     case '1h': return '1h';
-    case '4h': return '1h'; // Yahoo doesn't support 4h directly, fallback to 1h
     case '1D': return '1d';
     case '1W': return '1wk';
     case '1M': return '1mo';
@@ -44,14 +44,30 @@ export async function GET(request: Request) {
   try {
     const yahooInterval = getYahooInterval(intervalParam);
 
-    // Calculate period1 based on interval limits
-    let period1Date = new Date('1970-01-01');
+    // Calculate period1 based on requested limit to avoid Yahoo Finance auto-downsampling
+    let period1Date = new Date();
     const now = new Date();
     
+    // Safety buffer multiplier (weekends/holidays)
+    const daysNeeded = Math.ceil(
+      (yahooInterval === '1m' ? limit / 390 :
+       yahooInterval === '5m' ? limit / 78 :
+       yahooInterval === '15m' ? limit / 26 :
+       yahooInterval === '30m' ? limit / 13 :
+       yahooInterval === '60m' || yahooInterval === '1h' ? limit / 7 :
+       yahooInterval === '1d' ? limit :
+       yahooInterval === '1wk' ? limit * 7 :
+       yahooInterval === '1mo' ? limit * 30 :
+       limit) * 1.6
+    );
+
+    // Enforce Yahoo API maximums to avoid throwing errors
     if (yahooInterval === '1m' || yahooInterval === '5m') {
-      period1Date = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // Max 7 days
-    } else if (yahooInterval === '15m' || yahooInterval === '60m' || yahooInterval === '1h') {
-      period1Date = new Date(now.getTime() - 59 * 24 * 60 * 60 * 1000); // Max 60 days
+      period1Date.setDate(now.getDate() - Math.min(daysNeeded, 7));
+    } else if (yahooInterval === '15m' || yahooInterval === '30m' || yahooInterval === '60m' || yahooInterval === '1h') {
+      period1Date.setDate(now.getDate() - Math.min(daysNeeded, 59));
+    } else {
+      period1Date.setDate(now.getDate() - daysNeeded);
     }
 
     // Call Yahoo Finance
@@ -64,18 +80,36 @@ export async function GET(request: Request) {
     // Extract the quotes array from the chart result
     const quotes = result.quotes || [];
 
+    const isDaily = yahooInterval === '1d' || yahooInterval === '1wk' || yahooInterval === '1mo' || yahooInterval === '3mo';
+
     // Map to the Candle format expected by our frontend
-    // Candle: { time: number, open: number, high: number, low: number, close: number, volume: number }
+    // Candle: { time: number | string, open: number, high: number, low: number, close: number, volume: number }
     const formattedData = quotes
       .filter((q: any) => q.open !== null && q.high !== null && q.low !== null && q.close !== null)
-      .map((q: any) => ({
-        time: Math.floor(new Date(q.date).getTime() / 1000),
-        open: q.open,
-        high: q.high,
-        low: q.low,
-        close: q.close,
-        volume: q.volume || 0
-      }));
+      .map((q: any) => {
+        const d = new Date(q.date);
+        let timeValue: string | number;
+
+        if (isDaily) {
+          // Format as YYYY-MM-DD for lightweight-charts Daily/Weekly/Monthly to avoid timezone shift issues
+          const year = d.getFullYear();
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          timeValue = `${year}-${month}-${day}`;
+        } else {
+          // Intraday: Unix timestamp in seconds
+          timeValue = Math.floor(d.getTime() / 1000);
+        }
+
+        return {
+          time: timeValue,
+          open: q.open,
+          high: q.high,
+          low: q.low,
+          close: q.close,
+          volume: q.volume || 0
+        };
+      });
 
     // Slice to the requested limit
     const limitedData = formattedData.slice(-limit);
