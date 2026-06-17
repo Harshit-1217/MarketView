@@ -376,7 +376,7 @@ export default function StrategyEditor() {
             </div>
             {currentCandle && (
               <div className="text-[10px] text-muted-foreground font-mono text-right">
-                Tick: {new Date(currentCandle.time * 1000).toLocaleString()}
+                Tick: {new Date(typeof currentCandle.time === 'number' ? currentCandle.time * 1000 : currentCandle.time).toLocaleString()}
               </div>
             )}
           </div>

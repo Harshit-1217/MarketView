@@ -109,7 +109,7 @@ export function calculateVWAP(data: Candle[]): SingleValuePoint[] {
   if (data.length === 0) return result;
   let cumTPV = 0, cumVol = 0, prevDay = -1;
   for (const candle of data) {
-    const day = new Date(candle.time * 1000).getUTCDate();
+    const day = new Date(typeof candle.time === 'number' ? candle.time * 1000 : candle.time).getUTCDate();
     if (day !== prevDay) { cumTPV = 0; cumVol = 0; prevDay = day; }
     const tp = (candle.high + candle.low + candle.close) / 3;
     cumTPV += tp * candle.volume;
