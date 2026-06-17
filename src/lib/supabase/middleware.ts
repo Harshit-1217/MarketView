@@ -54,8 +54,8 @@ export async function updateSession(request: NextRequest) {
 
     const isApproved = profile?.is_approved ?? false;
 
-    // If not approved and trying to access anything other than /pending (and basic static assets which the matcher excludes)
-    if (!isApproved && url.pathname !== '/pending' && !url.pathname.startsWith('/api/')) {
+    // If not approved and trying to access anything other than /pending, / (and basic static assets which the matcher excludes)
+    if (!isApproved && url.pathname !== '/pending' && url.pathname !== '/' && !url.pathname.startsWith('/api/')) {
       url.pathname = '/pending';
       return NextResponse.redirect(url);
     }

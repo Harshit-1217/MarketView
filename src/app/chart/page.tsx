@@ -23,9 +23,11 @@ export default function ChartPage() {
 
       {/* 2. Middle Chart Workspace Area */}
       <div className="flex-1 flex flex-col min-w-0 h-full relative">
-        <QuickSettings onOpenIndicators={handleOpenIndicators} />
+        <div className="relative z-50">
+          <QuickSettings onOpenIndicators={handleOpenIndicators} />
+        </div>
         
-        <div className="flex-1 min-h-0 relative">
+        <div className="flex-1 min-h-0 relative z-0">
           <ChartLayout onOpenIndicators={handleOpenIndicators} />
         </div>
       </div>

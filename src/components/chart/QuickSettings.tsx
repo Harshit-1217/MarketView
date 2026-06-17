@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useChartStore, ChartLayoutType, ChartSeriesType } from '@/lib/store/chartStore';
+import { useWatchlistStore } from '@/lib/store/watchlistStore';
 import { 
   Layout, 
   Grid2X2, 
@@ -11,8 +12,26 @@ import {
   Sliders,
   RefreshCw,
   Search,
-  Loader2
+  Loader2,
+  Star
 } from 'lucide-react';
+
+/* ─── Reusable tooltip ──────────────────────────────────────────────────── */
+function QSTooltip({ children, label }: { children: React.ReactNode; label: string }) {
+  return (
+    <div className="relative group/qstip">
+      {children}
+      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 pointer-events-none
+        opacity-0 group-hover/qstip:opacity-100 transition-all duration-150
+        translate-y-1 group-hover/qstip:translate-y-0 z-[60] whitespace-nowrap">
+        <div className="px-2 py-1 rounded-lg text-[11px] font-semibold shadow-xl"
+          style={{ background:'rgba(13,17,23,0.97)', border:'1px solid rgba(255,255,255,0.1)', color:'#e2e8f0' }}>
+          {label}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface QuickSettingsProps {
   onOpenIndicators: () => void;
@@ -33,6 +52,18 @@ export default function QuickSettings({ onOpenIndicators }: QuickSettingsProps) 
 
   const activeChart = charts.find(c => c.id === activeChartId) || charts[0];
   const [symbolInput, setSymbolInput] = useState(activeChart.symbol);
+
+  const { symbols, addSymbol, removeSymbol } = useWatchlistStore();
+  const isStarred = symbols.includes(activeChart.symbol);
+
+  const toggleStarred = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isStarred) {
+      removeSymbol(activeChart.symbol);
+    } else {
+      addSymbol(activeChart.symbol);
+    }
+  };
   
   // Search state
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -116,7 +147,7 @@ export default function QuickSettings({ onOpenIndicators }: QuickSettingsProps) 
   }, [activeChart]);
 
   return (
-    <div className="h-14 border-b border-border bg-card/40 backdrop-blur-md flex items-center justify-between px-4 select-none shrink-0 z-10 w-full relative">
+    <div className="h-14 flex items-center justify-between px-4 select-none shrink-0 z-40 w-full relative quicksettings-bar">
       {/* Left items: Symbol input & Timeframes */}
       <div className="flex items-center gap-3">
         {/* Symbol Search Form */}
@@ -140,21 +171,27 @@ export default function QuickSettings({ onOpenIndicators }: QuickSettingsProps) 
             <button type="submit" className="hidden" />
           </form>
 
-          {/* Search Dropdown */}
           {showDropdown && searchResults.length > 0 && (
-            <div className="absolute top-full left-0 mt-2 w-64 bg-card border border-border rounded-xl shadow-xl overflow-hidden z-50">
-              <div className="max-h-64 overflow-y-auto">
+            <div className="absolute top-full left-0 mt-2 w-72 rounded-2xl shadow-2xl overflow-hidden z-50"
+              style={{ background:'rgba(13,17,23,0.98)', border:'1px solid rgba(255,255,255,0.1)' }}>
+              <div className="max-h-72 overflow-y-auto">
                 {searchResults.map((res: any, i: number) => (
                   <div
                     key={i}
                     onClick={() => handleSelectSymbol(res.symbol)}
-                    className="px-3 py-2 hover:bg-secondary/60 cursor-pointer flex flex-col transition border-b border-border/50 last:border-0"
+                    className="px-4 py-3 cursor-pointer flex flex-col transition"
+                    style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(59,130,246,0.08)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
                   >
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-sm text-foreground">{res.symbol}</span>
-                      <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{res.exchDisp || res.exchange}</span>
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md"
+                        style={{ background:'rgba(59,130,246,0.12)', color:'#3b82f6' }}>
+                        {res.exchDisp || res.exchange}
+                      </span>
                     </div>
-                    <span className="text-xs text-muted-foreground truncate">{res.longname || res.shortname}</span>
+                    <span className="text-xs text-muted-foreground truncate mt-0.5">{res.longname || res.shortname}</span>
                   </div>
                 ))}
               </div>
@@ -162,24 +199,44 @@ export default function QuickSettings({ onOpenIndicators }: QuickSettingsProps) 
           )}
         </div>
 
-        <div className="h-5 w-px bg-border hidden sm:block" />
+        {/* Watchlist Star Button */}
+        <QSTooltip label={isStarred ? 'Remove from Watchlist' : 'Add to Watchlist'}>
+          <button
+            onClick={toggleStarred}
+            className="p-1.5 rounded-lg border transition cursor-pointer flex items-center justify-center"
+            style={isStarred
+              ? { background:'rgba(245,158,11,0.12)', borderColor:'rgba(245,158,11,0.3)', color:'#f59e0b', boxShadow:'0 0 10px rgba(245,158,11,0.2)' }
+              : { background:'transparent', borderColor:'rgba(255,255,255,0.08)', color:'#64748b' }
+            }
+            onMouseEnter={e => { if (!isStarred) { e.currentTarget.style.background='rgba(255,255,255,0.06)'; e.currentTarget.style.color='#e2e8f0'; }}}
+            onMouseLeave={e => { if (!isStarred) { e.currentTarget.style.background='transparent'; e.currentTarget.style.color='#64748b'; }}}
+          >
+            <Star className={`h-4 w-4 ${isStarred ? 'fill-current' : ''}`} />
+          </button>
+        </QSTooltip>
+
+        <div className="h-5 w-px hidden sm:block" style={{ background:'rgba(255,255,255,0.08)' }} />
 
         {/* Timeframe selector */}
-        <div className="hidden sm:flex items-center bg-secondary/60 p-0.5 rounded-lg border border-border">
+        <div className="hidden sm:flex items-center p-0.5 rounded-xl"
+          style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.07)' }}>
           {timeframes.map((tf) => {
             const isSelected = activeChart.timeframe === tf;
             return (
-              <button
-                key={tf}
-                onClick={() => updateChartConfig(activeChartId, { timeframe: tf })}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition cursor-pointer ${
-                  isSelected 
-                    ? 'bg-primary text-white shadow-sm' 
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {tf}
-              </button>
+              <QSTooltip key={tf} label={`${tf} interval`}>
+                <button
+                  onClick={() => updateChartConfig(activeChartId, { timeframe: tf })}
+                  className="px-2.5 py-1 text-xs font-bold rounded-lg transition cursor-pointer"
+                  style={isSelected
+                    ? { background:'rgba(59,130,246,0.25)', color:'#60a5fa', boxShadow:'0 0 10px rgba(59,130,246,0.2)' }
+                    : { color:'#64748b' }
+                  }
+                  onMouseEnter={e => { if (!isSelected) e.currentTarget.style.color='#94a3b8'; }}
+                  onMouseLeave={e => { if (!isSelected) e.currentTarget.style.color='#64748b'; }}
+                >
+                  {tf}
+                </button>
+              </QSTooltip>
             );
           })}
         </div>
@@ -199,96 +256,101 @@ export default function QuickSettings({ onOpenIndicators }: QuickSettingsProps) 
       </div>
 
       {/* Right items: Chart Types, Layout grid, sync options, indicators */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         {/* Series Types */}
-        <div className="hidden md:flex items-center bg-secondary/60 p-0.5 rounded-lg border border-border">
+        <div className="hidden md:flex items-center p-0.5 rounded-xl"
+          style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.07)' }}>
           {chartTypes.map((t) => {
             const isSelected = activeChart.chartType === t.id;
             return (
-              <button
-                key={t.id}
-                onClick={() => updateChartConfig(activeChartId, { chartType: t.id })}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition cursor-pointer ${
-                  isSelected 
-                    ? 'bg-primary/20 text-primary border border-primary/20' 
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {t.label}
-              </button>
+              <QSTooltip key={t.id} label={`${t.label} chart`}>
+                <button
+                  onClick={() => updateChartConfig(activeChartId, { chartType: t.id })}
+                  className="px-2.5 py-1 text-xs font-bold rounded-lg transition cursor-pointer"
+                  style={isSelected
+                    ? { background:'rgba(59,130,246,0.2)', color:'#60a5fa', border:'1px solid rgba(59,130,246,0.3)' }
+                    : { color:'#64748b', border:'1px solid transparent' }
+                  }
+                  onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.background='rgba(255,255,255,0.05)'; e.currentTarget.style.color='#94a3b8'; }}}
+                  onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.background='transparent'; e.currentTarget.style.color='#64748b'; }}}
+                >
+                  {t.label}
+                </button>
+              </QSTooltip>
             );
           })}
         </div>
 
         {/* Technical Indicators */}
-        <button
-          onClick={onOpenIndicators}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary text-primary hover:text-white rounded-lg text-xs font-semibold transition cursor-pointer"
-        >
-          <Sliders className="h-3.5 w-3.5" />
-          <span>Indicators</span>
-        </button>
+        <QSTooltip label="Manage Indicators">
+          <button
+            onClick={onOpenIndicators}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer"
+            style={{ background:'rgba(59,130,246,0.12)', color:'#3b82f6', border:'1px solid rgba(59,130,246,0.2)' }}
+            onMouseEnter={e => { e.currentTarget.style.background='#3b82f6'; e.currentTarget.style.color='#fff'; e.currentTarget.style.borderColor='transparent'; }}
+            onMouseLeave={e => { e.currentTarget.style.background='rgba(59,130,246,0.12)'; e.currentTarget.style.color='#3b82f6'; e.currentTarget.style.borderColor='rgba(59,130,246,0.2)'; }}
+          >
+            <Sliders className="h-3.5 w-3.5" />
+            <span>Indicators</span>
+          </button>
+        </QSTooltip>
 
-        <div className="h-5 w-px bg-border" />
+        <div className="h-5 w-px" style={{ background:'rgba(255,255,255,0.08)' }} />
 
         {/* Grid layouts configuration */}
-        <div className="flex items-center bg-secondary/60 p-0.5 rounded-lg border border-border">
-          <button
-            onClick={() => setLayout('1')}
-            title="Single Chart Layout"
-            className={`p-1.5 rounded-md transition cursor-pointer ${
-              layout === '1' ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Square className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={() => setLayout('2')}
-            title="Split Chart Layout"
-            className={`p-1.5 rounded-md transition cursor-pointer ${
-              layout === '2' ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Layout className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={() => setLayout('4')}
-            title="4 Chart Grid Layout"
-            className={`p-1.5 rounded-md transition cursor-pointer ${
-              layout === '4' ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Grid2X2 className="h-3.5 w-3.5" />
-          </button>
+        <div className="flex items-center p-0.5 rounded-xl"
+          style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.07)' }}>
+          {([{ id: '1', label: 'Single chart', Icon: Square }, { id: '2', label: 'Split 2 charts', Icon: Layout }, { id: '4', label: '4-grid charts', Icon: Grid2X2 }] as const).map(({ id, label, Icon }) => (
+            <QSTooltip key={id} label={label}>
+              <button
+                onClick={() => setLayout(id)}
+                className="p-1.5 rounded-lg transition cursor-pointer"
+                style={layout === id
+                  ? { background:'rgba(59,130,246,0.25)', color:'#60a5fa' }
+                  : { color:'#64748b' }
+                }
+                onMouseEnter={e => { if (layout !== id) { e.currentTarget.style.background='rgba(255,255,255,0.06)'; e.currentTarget.style.color='#94a3b8'; }}}
+                onMouseLeave={e => { if (layout !== id) { e.currentTarget.style.background='transparent'; e.currentTarget.style.color='#64748b'; }}}
+              >
+                <Icon className="h-3.5 w-3.5" />
+              </button>
+            </QSTooltip>
+          ))}
         </div>
 
         {/* Sync Toggles */}
-        <div className="hidden lg:flex items-center gap-2">
-          <button
-            onClick={() => setSyncCrosshair(!syncCrosshair)}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ${
-              syncCrosshair 
-                ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' 
-                : 'text-muted-foreground border-border hover:bg-secondary'
-            }`}
-            title="Synchronize cursor crosshairs across splits"
-          >
-            <Eye className="h-3.5 w-3.5" />
-            <span>Sync Crosshair</span>
-          </button>
+        <div className="hidden lg:flex items-center gap-1.5">
+          <QSTooltip label="Sync crosshair across all charts">
+            <button
+              onClick={() => setSyncCrosshair(!syncCrosshair)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer"
+              style={syncCrosshair
+                ? { background:'rgba(16,185,129,0.12)', color:'#10b981', border:'1px solid rgba(16,185,129,0.25)' }
+                : { background:'transparent', color:'#64748b', border:'1px solid rgba(255,255,255,0.07)' }
+              }
+              onMouseEnter={e => { if (!syncCrosshair) { e.currentTarget.style.background='rgba(255,255,255,0.05)'; e.currentTarget.style.color='#94a3b8'; }}}
+              onMouseLeave={e => { if (!syncCrosshair) { e.currentTarget.style.background='transparent'; e.currentTarget.style.color='#64748b'; }}}
+            >
+              <Eye className="h-3.5 w-3.5" />
+              <span className="hidden 2xl:inline">Crosshair</span>
+            </button>
+          </QSTooltip>
 
-          <button
-            onClick={() => setSyncTimeframe(!syncTimeframe)}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ${
-              syncTimeframe 
-                ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' 
-                : 'text-muted-foreground border-border hover:bg-secondary'
-            }`}
-            title="Synchronize timeframe interval changes across splits"
-          >
-            <RefreshCw className="h-3.5 w-3.5 animate-spin-slow" />
-            <span>Sync Timeframe</span>
-          </button>
+          <QSTooltip label="Sync timeframe across all charts">
+            <button
+              onClick={() => setSyncTimeframe(!syncTimeframe)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer"
+              style={syncTimeframe
+                ? { background:'rgba(16,185,129,0.12)', color:'#10b981', border:'1px solid rgba(16,185,129,0.25)' }
+                : { background:'transparent', color:'#64748b', border:'1px solid rgba(255,255,255,0.07)' }
+              }
+              onMouseEnter={e => { if (!syncTimeframe) { e.currentTarget.style.background='rgba(255,255,255,0.05)'; e.currentTarget.style.color='#94a3b8'; }}}
+              onMouseLeave={e => { if (!syncTimeframe) { e.currentTarget.style.background='transparent'; e.currentTarget.style.color='#64748b'; }}}
+            >
+              <RefreshCw className="h-3.5 w-3.5 animate-spin-slow" />
+              <span className="hidden 2xl:inline">Timeframe</span>
+            </button>
+          </QSTooltip>
         </div>
       </div>
     </div>

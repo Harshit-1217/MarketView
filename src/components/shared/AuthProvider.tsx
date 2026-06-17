@@ -16,7 +16,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     // Client-side protection as a secondary measure
     if (!loading && user && profile && profile.is_approved === false) {
-      if (pathname !== '/pending') {
+      if (pathname !== '/pending' && pathname !== '/') {
         window.location.href = '/pending';
       }
     }

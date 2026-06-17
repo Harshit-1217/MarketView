@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useWatchlistStore } from '@/lib/store/watchlistStore';
 import { useChartStore, ChartConfig, ChartSeriesType } from '@/lib/store/chartStore';
 import { useIndicatorStore, IndicatorInstance } from '@/lib/store/indicatorStore';
 import { useDrawingStore, Drawing, DrawingPoint, DrawingProperties } from '@/lib/store/drawingStore';
@@ -14,7 +15,7 @@ import {
   calculateRSI, 
   calculateMACD 
 } from '@/lib/indicators/technicals';
-import { Sliders, Maximize2, Minimize2, Trash2 } from 'lucide-react';
+import { Sliders, Maximize2, Minimize2, Trash2, Star } from 'lucide-react';
 
 interface ChartInstanceProps {
   config: ChartConfig;
@@ -42,6 +43,18 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
   const { chartIndicators } = useIndicatorStore();
   const indicators = chartIndicators[config.id] || [];
   const { drawings, activeTool, setActiveTool, currentColor, currentWidth, addDrawing, deleteDrawing, fetchDrawings } = useDrawingStore();
+  const { symbols, addSymbol, removeSymbol } = useWatchlistStore();
+
+  const isStarred = symbols.includes(config.symbol);
+
+  const toggleStarred = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isStarred) {
+      removeSymbol(config.symbol);
+    } else {
+      addSymbol(config.symbol);
+    }
+  };
 
   // Active drawings for this symbol
   const activeDrawings = drawings.filter((d) => d.symbol === config.symbol);
@@ -215,7 +228,16 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
         });
       }
 
-      mainSeries.setData(candles);
+      if (config.chartType === 'candlestick') {
+        const validCandles = candles.filter(c => c && typeof c.time === 'number' && typeof c.close === 'number');
+        mainSeries.setData(validCandles);
+      } else {
+        // Area and Line series require { time, value } format
+        const validLineData = candles
+          .filter(c => c && typeof c.time === 'number' && typeof c.close === 'number')
+          .map(c => ({ time: c.time, value: c.close }));
+        mainSeries.setData(validLineData);
+      }
       mainSeriesObj.current = mainSeries;
 
       // Reset indicator map
@@ -543,7 +565,13 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
       // Hook Polling Manager
       if (marketManager) {
         marketManager.subscribe(config.symbol, config.timeframe, (realtimeCandle, isFinal) => {
-          mainSeries.update(realtimeCandle);
+          if (realtimeCandle && typeof realtimeCandle.time === 'number' && typeof realtimeCandle.close === 'number') {
+            if (config.chartType === 'candlestick') {
+              mainSeries.update(realtimeCandle);
+            } else {
+              mainSeries.update({ time: realtimeCandle.time, value: realtimeCandle.close });
+            }
+          }
           
           setCandles((prev) => {
             if (prev.length === 0) return [realtimeCandle];
@@ -710,9 +738,18 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
       }`}
     >
       {/* Chart Legend / HUD overlay */}
-      <div className="absolute top-3 left-4 z-30 pointer-events-none flex flex-col gap-1.5 bg-[#131722]/85 backdrop-blur px-3 py-2 rounded-lg border border-border/40 max-w-[90%]">
+      <div className="absolute top-3 left-4 z-30 pointer-events-auto flex flex-col gap-1.5 bg-[#131722]/85 backdrop-blur px-3 py-2 rounded-lg border border-border/40 max-w-[90%]">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="font-bold text-foreground text-sm tracking-wide">{config.symbol}</span>
+          <div className="flex items-center gap-1.5">
+            <span className="font-bold text-foreground text-sm tracking-wide">{config.symbol}</span>
+            <button
+              onClick={toggleStarred}
+              title={isStarred ? "Remove from Watchlist" : "Add to Watchlist"}
+              className="p-0.5 hover:bg-secondary rounded transition cursor-pointer text-muted-foreground hover:text-amber-500"
+            >
+              <Star className={`h-3.5 w-3.5 ${isStarred ? 'text-amber-500 fill-amber-500' : ''}`} />
+            </button>
+          </div>
           <span className="text-xs font-semibold px-1.5 py-0.5 bg-secondary text-primary rounded">{config.timeframe}</span>
           <span className="text-xs text-muted-foreground">{config.chartType}</span>
         </div>
