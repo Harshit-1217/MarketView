@@ -7,8 +7,8 @@ export interface BacktestTrade {
   entryPrice: number;
   exitPrice: number;
   quantity: number;
-  entryTime: number;
-  exitTime: number;
+  entryTime: number | string;
+  exitTime: number | string;
   pnl: number;
   pnlPercent: number;
 }
@@ -18,9 +18,9 @@ interface BacktestState {
   currentIndex: number; // Index in the candles array
   isPlaying: boolean;
   playbackSpeed: number; // ms per frame
-  activeTrade: { type: 'BUY' | 'SELL'; entryPrice: number; entryTime: number; quantity: number } | null;
+  activeTrade: { type: 'BUY' | 'SELL'; entryPrice: number; entryTime: number | string; quantity: number } | null;
   trades: BacktestTrade[];
-  equityCurve: { time: number; value: number }[];
+  equityCurve: { time: number | string; value: number }[];
   initialBalance: number;
   balance: number;
 

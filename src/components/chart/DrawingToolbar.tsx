@@ -305,7 +305,7 @@ export default function DrawingToolbar() {
                         {renderToolButton(
                           isSelected, 
                           item.icon, 
-                          () => handleToolClick(category.id, item.id as DrawingTool | 'select'), 
+                          () => handleToolClick(category.id, item.id as DrawingTool),
                           true, 
                           item.name
                         )}

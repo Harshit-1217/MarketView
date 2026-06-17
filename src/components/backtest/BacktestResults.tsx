@@ -105,7 +105,9 @@ export default function BacktestResults() {
               <tbody className="divide-y divide-border/40">
                 {trades.slice().reverse().map((t) => {
                   const isWin = t.pnl > 0;
-                  const durationBars = Math.floor((t.exitTime - t.entryTime) / 3600); // approx hours for hourly klines
+                  const exitMs = typeof t.exitTime === 'number' ? t.exitTime * 1000 : new Date(t.exitTime).getTime();
+                  const entryMs = typeof t.entryTime === 'number' ? t.entryTime * 1000 : new Date(t.entryTime).getTime();
+                  const durationBars = Math.floor((exitMs - entryMs) / 3600000); // approx hours for hourly klines
                   
                   return (
                     <tr key={t.id} className="hover:bg-secondary/20 transition-colors">

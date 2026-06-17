@@ -1,32 +1,32 @@
 import { Candle } from '../market/client';
 
 export interface SingleValuePoint {
-  time: number;
+  time: string | number;
   value: number;
 }
 
 export interface BBPoint {
-  time: number;
+  time: string | number;
   upper: number;
   middle: number;
   lower: number;
 }
 
 export interface MACDPoint {
-  time: number;
+  time: string | number;
   macd: number;
   signal: number;
   histogram: number;
 }
 
 export interface StochRSIPoint {
-  time: number;
+  time: string | number;
   k: number;
   d: number;
 }
 
 export interface IchimokuPoint {
-  time: number;
+  time: string | number;
   tenkan: number;
   kijun: number;
   senkouA: number;
@@ -290,7 +290,7 @@ export function calculateIchimoku(
 }
 
 export interface SupertrendPoint {
-  time: number;
+  time: string | number;
   value: number;
   direction: 'up' | 'down';
 }
@@ -348,7 +348,7 @@ export function calculateSupertrend(data: Candle[], period = 10, multiplier = 3)
 }
 
 export interface StochasticPoint {
-  time: number;
+  time: string | number;
   k: number;
   d: number;
 }
@@ -378,7 +378,7 @@ export function calculateStochastic(data: Candle[], kPeriod = 14, dPeriod = 3): 
 }
 
 export interface PivotPointData {
-  time: number;
+  time: string | number;
   pp: number;
   r1: number;
   r2: number;

@@ -410,7 +410,7 @@ export default function RightPanel() {
                 const isSelected = activeSymbol === sym;
                 const price = livePrices[sym];
                 const change = liveChanges[sym];
-                const isPositive = change !== undefined && change >= 0;
+                const isPositive = change !== undefined && change.pct >= 0;
                 
                 return (
                   <div
