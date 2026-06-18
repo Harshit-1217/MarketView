@@ -85,7 +85,7 @@ export const findClosestDrawing = (
           dist = Math.min(dist, 10);
         }
       }
-    } else if (['trend', 'ray', 'arrow', 'extendedLine', 'ruler', 'triangle'].includes(d.type) && screenPts.length >= 2) {
+    } else if (['trend', 'ray', 'arrow', 'extendedLine', 'ruler', 'triangle', 'infoLine', 'trendAngle'].includes(d.type) && screenPts.length >= 2) {
       const { sx: x1, sy: y1 } = screenPts[0];
       const { sx: x2, sy: y2 } = screenPts[1];
       if (x1 !== null && y1 !== null && x2 !== null && y2 !== null) {
@@ -126,7 +126,34 @@ export const findClosestDrawing = (
         const minY = Math.min(y1, y2), maxY = Math.max(y1, y2);
         if (x >= minX && x <= maxX && y >= minY && y <= maxY) dist = Math.min(dist, 10);
       }
-    } else if (d.type === 'brush' && screenPts.length >= 2) {
+    } else if (d.type === 'ellipse' && screenPts.length >= 2) {
+      const { sx: x1, sy: y1 } = screenPts[0];
+      const { sx: x2, sy: y2 } = screenPts[1];
+      if (x1 !== null && y1 !== null && x2 !== null && y2 !== null) {
+        const rx = Math.abs(x2 - x1) / 2;
+        const ry = Math.abs(y2 - y1) / 2;
+        const cx = Math.min(x1, x2) + rx;
+        const cy = Math.min(y1, y2) + ry;
+        if (rx > 0 && ry > 0) {
+          const isInside = ((x - cx)**2) / (rx**2) + ((y - cy)**2) / (ry**2) <= 1;
+          if (isInside) {
+            dist = 5; // close enough to hit
+          } else {
+            // Rough distance to bounding box if outside
+            dist = Math.sqrt((x - cx)**2 + (y - cy)**2) - Math.max(rx, ry);
+          }
+        }
+      }
+    } else if (d.type === 'curve' && screenPts.length >= 3) {
+      const p1 = screenPts[0];
+      const p2 = screenPts[1];
+      const p3 = screenPts[2];
+      if (p1.sx !== null && p1.sy !== null && p2.sx !== null && p2.sy !== null && p3.sx !== null && p3.sy !== null) {
+        const d1 = distanceToSegment(x, y, p1.sx, p1.sy, p2.sx, p2.sy);
+        const d2 = distanceToSegment(x, y, p2.sx, p2.sy, p3.sx, p3.sy);
+        dist = Math.min(d1, d2);
+      }
+    } else if (['brush', 'path'].includes(d.type) && screenPts.length >= 2) {
       for (let i = 0; i < screenPts.length - 1; i++) {
         const p1 = screenPts[i];
         const p2 = screenPts[i+1];
