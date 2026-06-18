@@ -25,25 +25,10 @@ import {
   calculateStochastic,
   calculatePivotPoints,
 } from '@/lib/indicators/technicals';
-import { Sliders, Maximize2, Minimize2, Trash2, Star, Pipette } from 'lucide-react';
-
-const COLORS = [
-  { hex: '#3b82f6', name: 'Blue' },
-  { hex: '#10b981', name: 'Green' },
-  { hex: '#ef4444', name: 'Red' },
-  { hex: '#f59e0b', name: 'Amber' },
-  { hex: '#8b5cf6', name: 'Purple' },
-  { hex: '#06b6d4', name: 'Cyan' },
-  { hex: '#ec4899', name: 'Pink' },
-  { hex: '#f97316', name: 'Orange' },
-  { hex: '#ffffff', name: 'White' },
-];
-
-const WIDTHS = [
-  { w: 1, label: 'Thin' },
-  { w: 2, label: 'Medium' },
-  { w: 4, label: 'Thick' },
-];
+import { Star } from 'lucide-react';
+import { findClosestDrawing as findClosestDrawingLib } from '@/lib/drawing/hitDetection';
+import { drawAllDrawings as renderAllDrawings } from '@/lib/drawing/renderers';
+import { FloatingToolbar } from './FloatingToolbar';
 
 interface ChartInstanceProps {
   config: ChartConfig;
@@ -543,586 +528,19 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        if (areDrawingsHiddenRef.current) return;
-
-        activeDrawingsRef.current.forEach((drawing) => {
-          ctx.strokeStyle = drawing.properties.color || '#2962ff';
-          ctx.fillStyle = drawing.properties.color || '#2962ff';
-          ctx.lineWidth = drawing.properties.width || 2;
-
-          const points = drawing.points.map((pt) => {
-            const x = chart.timeScale().timeToCoordinate(pt.time as any);
-            const y = mainSeries.priceToCoordinate(pt.price);
-            return { x, y };
-          });
-
-          // Draw depending on type
-          if (drawing.type === 'trend' && points.length === 2) {
-            const [p1, p2] = points;
-            if (p1.x !== null && p1.y !== null && p2.x !== null && p2.y !== null) {
-              ctx.beginPath();
-              ctx.moveTo(p1.x, p1.y);
-              ctx.lineTo(p2.x, p2.y);
-              ctx.stroke();
-              ctx.beginPath();
-              ctx.arc(p1.x, p1.y, 4, 0, Math.PI * 2);
-              ctx.arc(p2.x, p2.y, 4, 0, Math.PI * 2);
-              ctx.fill();
-            }
-          } else if (drawing.type === 'horizontal' && points.length >= 1) {
-            const [p1] = points;
-            if (p1.y !== null) {
-              ctx.beginPath();
-              ctx.moveTo(0, p1.y);
-              ctx.lineTo(canvas.width, p1.y);
-              ctx.stroke();
-            }
-          } else if (drawing.type === 'vertical' && points.length >= 1) {
-            const [p1] = points;
-            if (p1.x !== null) {
-              ctx.beginPath();
-              ctx.moveTo(p1.x, 0);
-              ctx.lineTo(p1.x, canvas.height);
-              ctx.stroke();
-            }
-          } else if (drawing.type === 'rectangle' && points.length === 2) {
-            const [p1, p2] = points;
-            if (p1.x !== null && p1.y !== null && p2.x !== null && p2.y !== null) {
-              ctx.beginPath();
-              ctx.rect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
-              ctx.stroke();
-              ctx.fillStyle = drawing.properties.fillColor || 'rgba(41, 98, 255, 0.15)';
-              ctx.fill();
-            }
-          } else if (drawing.type === 'fib' && points.length === 2) {
-            const [p1, p2] = points;
-            if (p1.x !== null && p1.y !== null && p2.x !== null && p2.y !== null) {
-              ctx.beginPath();
-              ctx.strokeStyle = '#787b86';
-              ctx.lineWidth = 1;
-              ctx.moveTo(p1.x, p1.y);
-              ctx.lineTo(p2.x, p2.y);
-              ctx.stroke();
-
-              const levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0];
-              const colors = ['#f23645', '#ff9800', '#4caf50', '#00bcd4', '#2196f3', '#9c27b0', '#787b86'];
-              const diff = p2.y - p1.y;
-              const priceDiff = drawing.points[1].price - drawing.points[0].price;
-
-              levels.forEach((lvl, idx) => {
-                const x1 = p1.x as number;
-                const y1 = p1.y as number;
-                const x2 = p2.x as number;
-                const y = y1 + diff * lvl;
-                ctx.strokeStyle = colors[idx];
-                ctx.beginPath();
-                ctx.moveTo(Math.min(x1, x2), y);
-                ctx.lineTo(Math.max(x1, x2), y);
-                ctx.stroke();
-
-                ctx.fillStyle = colors[idx];
-                ctx.font = '9px Arial';
-                const priceVal = (drawing.points[0].price + priceDiff * lvl).toFixed(2);
-                ctx.fillText(`Fib ${lvl} (${priceVal})`, Math.min(x1, x2) + 5, y - 4);
-              });
-            }
-          } else if (drawing.type === 'text' && points.length >= 1) {
-            const [p1] = points;
-            if (p1.x !== null && p1.y !== null) {
-              ctx.fillStyle = drawing.properties.color || '#fff';
-              ctx.font = '12px Arial';
-              ctx.fillText(drawing.properties.text || '', p1.x + 8, p1.y + 4);
-              ctx.beginPath();
-              ctx.arc(p1.x, p1.y, 3, 0, Math.PI * 2);
-              ctx.fill();
-            }
-          } else if (drawing.type === 'ellipse' && points.length === 2) {
-            const [p1, p2] = points;
-            if (p1.x !== null && p1.y !== null && p2.x !== null && p2.y !== null) {
-              const rx = Math.abs(p2.x - p1.x) / 2;
-              const ry = Math.abs(p2.y - p1.y) / 2;
-              const cx = Math.min(p1.x, p2.x) + rx;
-              const cy = Math.min(p1.y, p2.y) + ry;
-              ctx.beginPath();
-              ctx.ellipse(cx, cy, rx, ry, 0, 0, 2 * Math.PI);
-              ctx.stroke();
-              ctx.fillStyle = drawing.properties.fillColor || 'rgba(41, 98, 255, 0.15)';
-              ctx.fill();
-            }
-          } else if (drawing.type === 'ray' && points.length === 2) {
-            const [p1, p2] = points;
-            if (p1.x !== null && p1.y !== null && p2.x !== null && p2.y !== null) {
-              ctx.beginPath();
-              ctx.moveTo(p1.x, p1.y);
-              const dx = p2.x - p1.x;
-              const dy = p2.y - p1.y;
-              ctx.lineTo(p1.x + dx * 2000, p1.y + dy * 2000);
-              ctx.stroke();
-            }
-          } else if (drawing.type === 'extendedLine' && points.length === 2) {
-            const [p1, p2] = points;
-            if (p1.x !== null && p1.y !== null && p2.x !== null && p2.y !== null) {
-              ctx.beginPath();
-              const dx = p2.x - p1.x;
-              const dy = p2.y - p1.y;
-              ctx.moveTo(p1.x - dx * 2000, p1.y - dy * 2000);
-              ctx.lineTo(p1.x + dx * 2000, p1.y + dy * 2000);
-              ctx.stroke();
-            }
-          } else if (drawing.type === 'parallelChannel' && points.length === 3) {
-            const [p1, p2, p3] = points;
-            if (p1.x !== null && p1.y !== null && p2.x !== null && p2.y !== null && p3.x !== null && p3.y !== null) {
-              ctx.beginPath();
-              const dx = p2.x - p1.x;
-              const dy = p2.y - p1.y;
-              ctx.moveTo(p1.x - dx * 2000, p1.y - dy * 2000);
-              ctx.lineTo(p1.x + dx * 2000, p1.y + dy * 2000);
-              ctx.stroke();
-
-              const offsetX = p3.x - p1.x;
-              const offsetY = p3.y - p1.y;
-
-              ctx.beginPath();
-              ctx.moveTo(p1.x + offsetX - dx * 2000, p1.y + offsetY - dy * 2000);
-              ctx.lineTo(p1.x + offsetX + dx * 2000, p1.y + offsetY + dy * 2000);
-              ctx.stroke();
-
-              // Fill the channel
-              ctx.beginPath();
-              ctx.moveTo(p1.x - dx * 2000, p1.y - dy * 2000);
-              ctx.lineTo(p1.x + dx * 2000, p1.y + dy * 2000);
-              ctx.lineTo(p1.x + offsetX + dx * 2000, p1.y + offsetY + dy * 2000);
-              ctx.lineTo(p1.x + offsetX - dx * 2000, p1.y + offsetY - dy * 2000);
-              ctx.fillStyle = drawing.properties.fillColor || 'rgba(41, 98, 255, 0.15)';
-              ctx.fill();
-            }
-          } else if (drawing.type === 'triangle' && points.length === 3) {
-            const [p1, p2, p3] = points;
-            if (p1.x !== null && p1.y !== null && p2.x !== null && p2.y !== null && p3.x !== null && p3.y !== null) {
-              ctx.beginPath();
-              ctx.moveTo(p1.x, p1.y);
-              ctx.lineTo(p2.x, p2.y);
-              ctx.lineTo(p3.x, p3.y);
-              ctx.closePath();
-              ctx.stroke();
-              ctx.fillStyle = drawing.properties.fillColor || 'rgba(41, 98, 255, 0.15)';
-              ctx.fill();
-            }
-          } else if (drawing.type === 'ruler' && points.length === 2) {
-            const [p1, p2] = points;
-            if (p1.x !== null && p1.y !== null && p2.x !== null && p2.y !== null) {
-              ctx.beginPath();
-              ctx.setLineDash([4, 4]);
-              ctx.moveTo(p1.x, p1.y);
-              ctx.lineTo(p2.x, p2.y);
-              ctx.stroke();
-              ctx.setLineDash([]);
-              
-              const priceDiff = drawing.points[1].price - drawing.points[0].price;
-              const pctDiff = (priceDiff / drawing.points[0].price) * 100;
-              
-              ctx.fillStyle = pctDiff >= 0 ? 'rgba(38, 166, 154, 0.9)' : 'rgba(239, 83, 80, 0.9)';
-              ctx.font = '12px Arial';
-              const text = `${priceDiff > 0 ? '+' : ''}${priceDiff.toFixed(2)} (${pctDiff.toFixed(2)}%)`;
-              const textWidth = ctx.measureText(text).width;
-              
-              ctx.fillRect(p2.x + 10, p2.y - 15, textWidth + 12, 22);
-              ctx.fillStyle = '#fff';
-              ctx.fillText(text, p2.x + 16, p2.y);
-            }
-          } else if (drawing.type === 'arrow' && points.length === 2) {
-            const [p1, p2] = points;
-            if (p1.x !== null && p1.y !== null && p2.x !== null && p2.y !== null) {
-              ctx.beginPath();
-              ctx.moveTo(p1.x, p1.y);
-              ctx.lineTo(p2.x, p2.y);
-              ctx.stroke();
-              const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-              ctx.beginPath();
-              ctx.moveTo(p2.x, p2.y);
-              ctx.lineTo(p2.x - 12 * Math.cos(angle - Math.PI / 6), p2.y - 12 * Math.sin(angle - Math.PI / 6));
-              ctx.lineTo(p2.x - 12 * Math.cos(angle + Math.PI / 6), p2.y - 12 * Math.sin(angle + Math.PI / 6));
-              ctx.lineTo(p2.x, p2.y);
-              ctx.fill();
-            }
-          } else if (drawing.type === 'brush' && points.length > 1) {
-            ctx.beginPath();
-            if (points[0].x !== null && points[0].y !== null) {
-              ctx.moveTo(points[0].x as number, points[0].y as number);
-              for (let i = 1; i < points.length; i++) {
-                if (points[i].x !== null && points[i].y !== null) {
-                  ctx.lineTo(points[i].x as number, points[i].y as number);
-                }
-              }
-              ctx.stroke();
-            }
-          } else if (drawing.type === 'horizontalRay' && points.length >= 1) {
-            const [p1] = points;
-            if (p1.x !== null && p1.y !== null) {
-              ctx.beginPath();
-              ctx.moveTo(p1.x, p1.y);
-              ctx.lineTo(canvas.width, p1.y);
-              ctx.stroke();
-            }
-          } else if (drawing.type === 'crossLine' && points.length >= 1) {
-            const [p1] = points;
-            if (p1.x !== null && p1.y !== null) {
-              ctx.beginPath();
-              ctx.moveTo(0, p1.y);
-              ctx.lineTo(canvas.width, p1.y);
-              ctx.moveTo(p1.x, 0);
-              ctx.lineTo(p1.x, canvas.height);
-              ctx.stroke();
-            }
-          } else if (drawing.type === 'infoLine' && points.length === 2) {
-            const [p1, p2] = points;
-            if (p1.x !== null && p1.y !== null && p2.x !== null && p2.y !== null) {
-              ctx.beginPath();
-              ctx.moveTo(p1.x, p1.y);
-              ctx.lineTo(p2.x, p2.y);
-              ctx.stroke();
-              
-              const priceDiff = drawing.points[1].price - drawing.points[0].price;
-              const pctDiff = (priceDiff / drawing.points[0].price) * 100;
-              const angle = -Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI;
-              
-              ctx.fillStyle = 'rgba(13, 17, 23, 0.8)';
-              ctx.font = '12px Arial';
-              const text1 = `${priceDiff > 0 ? '+' : ''}${priceDiff.toFixed(2)} (${pctDiff.toFixed(2)}%)`;
-              const text2 = `${angle.toFixed(1)}°`;
-              const textWidth = Math.max(ctx.measureText(text1).width, ctx.measureText(text2).width);
-              
-              ctx.fillRect(p2.x + 10, p2.y - 15, textWidth + 12, 36);
-              ctx.fillStyle = drawing.properties.color || '#2962ff';
-              ctx.fillText(text1, p2.x + 16, p2.y);
-              ctx.fillText(text2, p2.x + 16, p2.y + 16);
-            }
-          } else if (drawing.type === 'trendAngle' && points.length === 2) {
-            const [p1, p2] = points;
-            if (p1.x !== null && p1.y !== null && p2.x !== null && p2.y !== null) {
-              ctx.beginPath();
-              ctx.moveTo(p1.x, p1.y);
-              ctx.lineTo(p2.x, p2.y);
-              ctx.stroke();
-              
-              ctx.beginPath();
-              ctx.setLineDash([4, 4]);
-              ctx.moveTo(p1.x, p1.y);
-              ctx.lineTo(p2.x, p1.y);
-              ctx.stroke();
-              ctx.setLineDash([]);
-              
-              const angleRad = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-              const angleDeg = -angleRad * 180 / Math.PI;
-              
-              ctx.beginPath();
-              ctx.arc(p1.x, p1.y, 30, angleRad < 0 ? angleRad : 0, angleRad < 0 ? 0 : angleRad, angleRad < 0);
-              ctx.stroke();
-              
-              ctx.fillStyle = drawing.properties.color || '#2962ff';
-              ctx.font = '12px Arial';
-              ctx.fillText(`${angleDeg.toFixed(1)}°`, p2.x + 10, p2.y);
-            }
-          } else if (drawing.type === 'path' && points.length >= 2) {
-            ctx.beginPath();
-            if (points[0].x !== null && points[0].y !== null) {
-              ctx.moveTo(points[0].x as number, points[0].y as number);
-              for (let i = 1; i < points.length; i++) {
-                if (points[i].x !== null && points[i].y !== null) {
-                  ctx.lineTo(points[i].x as number, points[i].y as number);
-                }
-              }
-              ctx.stroke();
-            }
-          } else if (drawing.type === 'curve' && points.length === 3) {
-            const [p1, p2, p3] = points;
-            if (p1.x !== null && p1.y !== null && p2.x !== null && p2.y !== null && p3.x !== null && p3.y !== null) {
-              ctx.beginPath();
-              ctx.moveTo(p1.x as number, p1.y as number);
-              ctx.quadraticCurveTo(p2.x as number, p2.y as number, p3.x as number, p3.y as number);
-              ctx.stroke();
-            }
-          }
-        });
-
-        // Draw active drawing in progress
-        if (isDrawingRef.current && drawingPointsRef.current.length > 0) {
-          ctx.strokeStyle = currentColorRef.current;
-          ctx.lineWidth = currentWidthRef.current;
-          ctx.fillStyle = currentColorRef.current;
-
-          const activeTool = activeToolRef.current;
-          const drawingPoints = drawingPointsRef.current;
-
-          const p1 = {
-            x: chart.timeScale().timeToCoordinate(drawingPoints[0].time as any),
-            y: mainSeries.priceToCoordinate(drawingPoints[0].price),
-          };
-
-          if (p1.x !== null && p1.y !== null) {
-            if (activeTool === 'trend' && drawingPoints.length === 2) {
-              const p2 = {
-                x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-                y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-              };
-              if (p2.x !== null && p2.y !== null) {
-                ctx.beginPath();
-                ctx.moveTo(p1.x, p1.y);
-                ctx.lineTo(p2.x, p2.y);
-                ctx.stroke();
-              }
-            } else if (activeTool === 'rectangle' && drawingPoints.length === 2) {
-              const p2 = {
-                x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-                y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-              };
-              if (p2.x !== null && p2.y !== null) {
-                ctx.beginPath();
-                ctx.rect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
-                ctx.stroke();
-              }
-            } else if (activeTool === 'fib' && drawingPoints.length === 2) {
-              const p2 = {
-                x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-                y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-              };
-              if (p2.x !== null && p2.y !== null) {
-                ctx.beginPath();
-                ctx.moveTo(p1.x, p1.y);
-                ctx.lineTo(p2.x, p2.y);
-                ctx.stroke();
-              }
-            } else if (activeTool === 'ellipse' && drawingPoints.length === 2) {
-              const p2 = {
-                x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-                y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-              };
-              if (p2.x !== null && p2.y !== null) {
-                const rx = Math.abs(p2.x - p1.x) / 2;
-                const ry = Math.abs(p2.y - p1.y) / 2;
-                const cx = Math.min(p1.x, p2.x) + rx;
-                const cy = Math.min(p1.y, p2.y) + ry;
-                ctx.beginPath();
-                ctx.ellipse(cx, cy, rx, ry, 0, 0, 2 * Math.PI);
-                ctx.stroke();
-              }
-            } else if (activeTool === 'ray' && drawingPoints.length === 2) {
-              const p2 = {
-                x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-                y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-              };
-              if (p2.x !== null && p2.y !== null) {
-                ctx.beginPath();
-                ctx.moveTo(p1.x, p1.y);
-                const dx = p2.x - p1.x;
-                const dy = p2.y - p1.y;
-                ctx.lineTo(p1.x + dx * 1000, p1.y + dy * 1000);
-                ctx.stroke();
-              }
-            } else if (activeTool === 'arrow' && drawingPoints.length === 2) {
-              const p2 = {
-                x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-                y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-              };
-              if (p2.x !== null && p2.y !== null) {
-                ctx.beginPath();
-                ctx.moveTo(p1.x, p1.y);
-                ctx.lineTo(p2.x, p2.y);
-                ctx.stroke();
-                const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-                ctx.beginPath();
-                ctx.moveTo(p2.x, p2.y);
-                ctx.lineTo(p2.x - 12 * Math.cos(angle - Math.PI / 6), p2.y - 12 * Math.sin(angle - Math.PI / 6));
-                ctx.lineTo(p2.x - 12 * Math.cos(angle + Math.PI / 6), p2.y - 12 * Math.sin(angle + Math.PI / 6));
-                ctx.lineTo(p2.x, p2.y);
-                ctx.fill();
-              }
-            } else if (activeTool === 'extendedLine' && drawingPoints.length === 2) {
-              const p2 = {
-                x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-                y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-              };
-              if (p2.x !== null && p2.y !== null) {
-                ctx.beginPath();
-                const dx = p2.x - p1.x;
-                const dy = p2.y - p1.y;
-                ctx.moveTo(p1.x - dx * 2000, p1.y - dy * 2000);
-                ctx.lineTo(p1.x + dx * 2000, p1.y + dy * 2000);
-                ctx.stroke();
-              }
-            } else if (activeTool === 'infoLine' && drawingPoints.length === 2) {
-              const p2 = {
-                x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-                y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-              };
-              if (p2.x !== null && p2.y !== null) {
-                ctx.beginPath();
-                ctx.moveTo(p1.x, p1.y);
-                ctx.lineTo(p2.x, p2.y);
-                ctx.stroke();
-              }
-            } else if (activeTool === 'trendAngle' && drawingPoints.length === 2) {
-              const p2 = {
-                x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-                y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-              };
-              if (p2.x !== null && p2.y !== null) {
-                ctx.beginPath();
-                ctx.moveTo(p1.x, p1.y);
-                ctx.lineTo(p2.x, p2.y);
-                ctx.stroke();
-                
-                ctx.beginPath();
-                ctx.setLineDash([4, 4]);
-                ctx.moveTo(p1.x, p1.y);
-                ctx.lineTo(p2.x, p1.y);
-                ctx.stroke();
-                ctx.setLineDash([]);
-                
-                const angleRad = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-                ctx.beginPath();
-                ctx.arc(p1.x, p1.y, 30, angleRad < 0 ? angleRad : 0, angleRad < 0 ? 0 : angleRad, angleRad < 0);
-                ctx.stroke();
-              }
-            } else if (activeTool === 'path' && drawingPoints.length >= 2) {
-              ctx.beginPath();
-              ctx.moveTo(p1.x as number, p1.y as number);
-              for (let i = 1; i < drawingPoints.length; i++) {
-                const pNext = {
-                  x: chart.timeScale().timeToCoordinate(drawingPoints[i].time as any),
-                  y: mainSeries.priceToCoordinate(drawingPoints[i].price),
-                };
-                if (pNext.x !== null && pNext.y !== null) {
-                  ctx.lineTo(pNext.x as number, pNext.y as number);
-                }
-              }
-              ctx.stroke();
-            } else if (activeTool === 'curve' && (drawingPoints.length === 2 || drawingPoints.length === 3)) {
-              const p2 = {
-                x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-                y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-              };
-              if (drawingPoints.length === 2 && p2.x !== null && p2.y !== null) {
-                ctx.beginPath();
-                ctx.moveTo(p1.x as number, p1.y as number);
-                ctx.lineTo(p2.x as number, p2.y as number);
-                ctx.stroke();
-              } else if (drawingPoints.length === 3) {
-                const p3 = {
-                  x: chart.timeScale().timeToCoordinate(drawingPoints[2].time as any),
-                  y: mainSeries.priceToCoordinate(drawingPoints[2].price),
-                };
-                if (p2.x !== null && p2.y !== null && p3.x !== null && p3.y !== null) {
-                  ctx.beginPath();
-                  ctx.moveTo(p1.x as number, p1.y as number);
-                  ctx.quadraticCurveTo(p2.x as number, p2.y as number, p3.x as number, p3.y as number);
-                  ctx.stroke();
-                }
-              }
-            } else if (activeTool === 'parallelChannel' && (drawingPoints.length === 2 || drawingPoints.length === 3)) {
-              const p2 = {
-                x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-                y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-              };
-              if (p2.x !== null && p2.y !== null) {
-                ctx.beginPath();
-                const dx = p2.x - p1.x;
-                const dy = p2.y - p1.y;
-                ctx.moveTo(p1.x - dx * 2000, p1.y - dy * 2000);
-                ctx.lineTo(p1.x + dx * 2000, p1.y + dy * 2000);
-                ctx.stroke();
-
-                if (drawingPoints.length === 3) {
-                  const p3 = {
-                    x: chart.timeScale().timeToCoordinate(drawingPoints[2].time as any),
-                    y: mainSeries.priceToCoordinate(drawingPoints[2].price),
-                  };
-                  if (p3.x !== null && p3.y !== null) {
-                    const offsetX = p3.x - p1.x;
-                    const offsetY = p3.y - p1.y;
-                    ctx.beginPath();
-                    ctx.moveTo(p1.x + offsetX - dx * 2000, p1.y + offsetY - dy * 2000);
-                    ctx.lineTo(p1.x + offsetX + dx * 2000, p1.y + offsetY + dy * 2000);
-                    ctx.stroke();
-
-                    ctx.beginPath();
-                    ctx.moveTo(p1.x - dx * 2000, p1.y - dy * 2000);
-                    ctx.lineTo(p1.x + dx * 2000, p1.y + dy * 2000);
-                    ctx.lineTo(p1.x + offsetX + dx * 2000, p1.y + offsetY + dy * 2000);
-                    ctx.lineTo(p1.x + offsetX - dx * 2000, p1.y + offsetY - dy * 2000);
-                    ctx.fillStyle = 'rgba(41, 98, 255, 0.15)';
-                    ctx.fill();
-                  }
-                }
-              }
-            } else if (activeTool === 'triangle' && (drawingPoints.length === 2 || drawingPoints.length === 3)) {
-              const p2 = {
-                x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-                y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-              };
-              if (p2.x !== null && p2.y !== null) {
-                if (drawingPoints.length === 2) {
-                  ctx.beginPath();
-                  ctx.moveTo(p1.x, p1.y);
-                  ctx.lineTo(p2.x, p2.y);
-                  ctx.stroke();
-                } else if (drawingPoints.length === 3) {
-                  const p3 = {
-                    x: chart.timeScale().timeToCoordinate(drawingPoints[2].time as any),
-                    y: mainSeries.priceToCoordinate(drawingPoints[2].price),
-                  };
-                  if (p3.x !== null && p3.y !== null) {
-                    ctx.beginPath();
-                    ctx.moveTo(p1.x, p1.y);
-                    ctx.lineTo(p2.x, p2.y);
-                    ctx.lineTo(p3.x, p3.y);
-                    ctx.closePath();
-                    ctx.stroke();
-                    ctx.fillStyle = 'rgba(41, 98, 255, 0.15)';
-                    ctx.fill();
-                  }
-                }
-              }
-            } else if (activeTool === 'ruler' && drawingPoints.length === 2) {
-              const p2 = {
-                x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-                y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-              };
-              if (p2.x !== null && p2.y !== null) {
-                ctx.beginPath();
-                ctx.setLineDash([4, 4]);
-                ctx.moveTo(p1.x, p1.y);
-                ctx.lineTo(p2.x, p2.y);
-                ctx.stroke();
-                ctx.setLineDash([]);
-                
-                const priceDiff = drawingPoints[1].price - drawingPoints[0].price;
-                const pctDiff = (priceDiff / drawingPoints[0].price) * 100;
-                ctx.fillStyle = pctDiff >= 0 ? 'rgba(38, 166, 154, 0.9)' : 'rgba(239, 83, 80, 0.9)';
-                ctx.font = '12px Arial';
-                const text = `${priceDiff > 0 ? '+' : ''}${priceDiff.toFixed(2)} (${pctDiff.toFixed(2)}%)`;
-                const textWidth = ctx.measureText(text).width;
-                ctx.fillRect(p2.x + 10, p2.y - 15, textWidth + 12, 22);
-                ctx.fillStyle = '#fff';
-                ctx.fillText(text, p2.x + 16, p2.y);
-              }
-            } else if (activeTool === 'brush' && drawingPoints.length > 1) {
-              ctx.beginPath();
-              ctx.moveTo(p1.x as number, p1.y as number);
-              for (let i = 1; i < drawingPoints.length; i++) {
-                const pt = {
-                  x: chart.timeScale().timeToCoordinate(drawingPoints[i].time as any),
-                  y: mainSeries.priceToCoordinate(drawingPoints[i].price),
-                };
-                if (pt.x !== null && pt.y !== null) {
-                  ctx.lineTo(pt.x as number, pt.y as number);
-                }
-              }
-              ctx.stroke();
-            }
-          }
-        }
+        renderAllDrawings(
+          canvas,
+          ctx,
+          activeDrawingsRef.current,
+          chart,
+          mainSeries,
+          areDrawingsHiddenRef.current,
+          isDrawingRef.current,
+          drawingPointsRef.current,
+          activeToolRef.current,
+          currentColorRef.current,
+          currentWidthRef.current
+        );
       };
 
       drawDrawingsRef.current = drawAllDrawings;
@@ -1238,6 +656,17 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
     }
   }, [activeTool]);
 
+  const findClosestDrawing = useCallback((x: number, y: number) => {
+    if (!chartObj.current || !mainSeriesObj.current) return null;
+    return findClosestDrawingLib(
+      x, 
+      y, 
+      activeDrawingsRef.current, 
+      chartObj.current, 
+      mainSeriesObj.current
+    );
+  }, []);
+
   // Handle Drawings Canvas Clicks
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!activeTool || !chartObj.current || !mainSeriesObj.current || !canvasRef.current || areDrawingsLocked) return;
@@ -1262,84 +691,7 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
     const point = { time, price };
 
     if (!activeTool || activeTool === 'crosshair' || activeTool === 'arrowCursor' || activeTool === 'eraser') {
-      let closestId: string | null = null;
-      let minDistance = 15; // 15 pixel threshold for erasing
-
-      const distanceToSegment = (px: number, py: number, x1: number, y1: number, x2: number, y2: number) => {
-        const l2 = (x1 - x2) ** 2 + (y1 - y2) ** 2;
-        if (l2 === 0) return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2);
-        let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
-        t = Math.max(0, Math.min(1, t));
-        return Math.sqrt((px - (x1 + t * (x2 - x1))) ** 2 + (py - (y1 + t * (y2 - y1))) ** 2);
-      };
-
-      activeDrawingsRef.current.forEach(d => {
-        if (!d.points || d.points.length < 1) return;
-        
-        // Convert all points to screen space
-        const screenPts = d.points.map(pt => {
-          const sx = chartObj.current!.timeScale().timeToCoordinate(pt.time as any);
-          const sy = mainSeriesObj.current!.priceToCoordinate(pt.price);
-          return { sx, sy };
-        });
-
-        let dist = Infinity;
-
-        if (['trend', 'ray', 'arrow', 'extendedLine', 'ruler', 'fib', 'parallelChannel', 'triangle'].includes(d.type) && screenPts.length >= 2) {
-          const { sx: x1, sy: y1 } = screenPts[0];
-          const { sx: x2, sy: y2 } = screenPts[1];
-          if (x1 !== null && y1 !== null && x2 !== null && y2 !== null) {
-            if (d.type === 'ray' || d.type === 'extendedLine') {
-              // Simplified for ray/extended: check infinite line distance
-              const num = Math.abs((y2 - y1)*x - (x2 - x1)*y + x2*y1 - y2*x1);
-              const den = Math.sqrt((y2 - y1)**2 + (x2 - x1)**2);
-              dist = den === 0 ? Infinity : num / den;
-            } else {
-              dist = distanceToSegment(x, y, x1, y1, x2, y2);
-            }
-          }
-        } else if (d.type === 'rectangle' && screenPts.length >= 2) {
-          const { sx: x1, sy: y1 } = screenPts[0];
-          const { sx: x2, sy: y2 } = screenPts[1];
-          if (x1 !== null && y1 !== null && x2 !== null && y2 !== null) {
-            const d1 = distanceToSegment(x, y, x1, y1, x2, y1);
-            const d2 = distanceToSegment(x, y, x2, y1, x2, y2);
-            const d3 = distanceToSegment(x, y, x2, y2, x1, y2);
-            const d4 = distanceToSegment(x, y, x1, y2, x1, y1);
-            dist = Math.min(d1, d2, d3, d4);
-            // Also check inside rectangle
-            const minX = Math.min(x1, x2), maxX = Math.max(x1, x2);
-            const minY = Math.min(y1, y2), maxY = Math.max(y1, y2);
-            if (x >= minX && x <= maxX && y >= minY && y <= maxY) dist = 0;
-          }
-        } else if (d.type === 'horizontal' && screenPts.length >= 1) {
-          const sy = screenPts[0].sy;
-          if (sy !== null) dist = Math.abs(y - sy);
-        } else if (d.type === 'vertical' && screenPts.length >= 1) {
-          const sx = screenPts[0].sx;
-          if (sx !== null) dist = Math.abs(x - sx);
-        } else if (d.type === 'brush' && screenPts.length >= 2) {
-          for (let i = 0; i < screenPts.length - 1; i++) {
-            const p1 = screenPts[i];
-            const p2 = screenPts[i+1];
-            if (p1.sx !== null && p1.sy !== null && p2.sx !== null && p2.sy !== null) {
-              const segDist = distanceToSegment(x, y, p1.sx, p1.sy, p2.sx, p2.sy);
-              if (segDist < dist) dist = segDist;
-            }
-          }
-        } else if (screenPts.length >= 1) {
-          // fallback to anchor point distance (Text, etc.)
-          const { sx, sy } = screenPts[0];
-          if (sx !== null && sy !== null) {
-            dist = Math.sqrt((x - sx)**2 + (y - sy)**2);
-          }
-        }
-
-        if (dist < minDistance) {
-          minDistance = dist;
-          closestId = d.id;
-        }
-      });
+      const closestId = findClosestDrawing(x, y);
 
       if (closestId) {
         if (activeTool === 'eraser') {
@@ -1516,7 +868,30 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
   return (
     <div 
       ref={outerRef}
-      onClick={() => setActiveChartId(config.id)}
+      onClick={(e) => {
+        setActiveChartId(config.id);
+        const state = useDrawingStore.getState();
+        if (!state.activeTool || ['crosshair', 'arrowCursor', 'dot'].includes(state.activeTool as string)) {
+          if (!canvasRef.current) return;
+          const rect = canvasRef.current.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+          
+          if (x < 0 || y < 0 || x > rect.width || y > rect.height) {
+            setSelectedDrawing(null);
+            return;
+          }
+          
+          if (!areDrawingsLocked) {
+            const closestId = findClosestDrawing(x, y);
+            if (closestId) {
+              setSelectedDrawing({ id: closestId, x: e.clientX, y: e.clientY });
+            } else {
+              setSelectedDrawing(null);
+            }
+          }
+        }
+      }}
       onContextMenu={handleContextMenu}
       className={`flex-1 w-full h-full min-w-0 min-h-0 border bg-card rounded-xl overflow-hidden shadow-lg select-none relative ${
         isActive ? 'border-primary ring-2 ring-primary/20' : 'border-border/60'
@@ -1688,92 +1063,16 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
       )}
 
       {/* Floating Drawing Settings Toolbar */}
-      {selectedDrawing && (() => {
-        // Clamp the toolbar so it doesn't go off-screen
-        const toolbarY = Math.max(80, Math.min(selectedDrawing.y - 60, containerSize.h - 60));
-        const toolbarX = Math.max(60, Math.min(selectedDrawing.x - 60, containerSize.w - 180));
-        
-        // If the toolbar is too close to the top of the chart, render dropdowns below it
-        const isNearTop = toolbarY < 180;
-        const colorPopupClass = isNearTop
-          ? "absolute left-1/2 -translate-x-1/2 top-full pt-2 opacity-0 pointer-events-none group-hover/floatcolor:opacity-100 group-hover/floatcolor:pointer-events-auto transition-all duration-200 z-[70]"
-          : "absolute left-1/2 -translate-x-1/2 bottom-full pb-2 opacity-0 pointer-events-none group-hover/floatcolor:opacity-100 group-hover/floatcolor:pointer-events-auto transition-all duration-200 z-[70]";
-        const widthPopupClass = isNearTop
-          ? "absolute left-1/2 -translate-x-1/2 top-full pt-2 opacity-0 pointer-events-none group-hover/floatwidth:opacity-100 group-hover/floatwidth:pointer-events-auto transition-all duration-200 z-[70]"
-          : "absolute left-1/2 -translate-x-1/2 bottom-full pb-2 opacity-0 pointer-events-none group-hover/floatwidth:opacity-100 group-hover/floatwidth:pointer-events-auto transition-all duration-200 z-[70]";
-
-        return (
-          <div 
-            className="fixed z-[60] flex items-center gap-1.5 p-1.5 bg-card/95 backdrop-blur-xl border border-border shadow-2xl rounded-xl animate-in fade-in zoom-in-95 duration-100"
-            style={{ top: toolbarY, left: toolbarX }}
-          >
-            {/* Color Picker */}
-            <div className="relative group/floatcolor">
-              <button className="w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer hover:bg-white/10" style={{ color: currentColor }}>
-                <Pipette className="h-4 w-4" />
-              </button>
-              <div className={colorPopupClass}>
-                <div className="p-2.5 rounded-xl shadow-xl bg-card border border-border min-w-[130px]">
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {COLORS.map(({ hex, name }) => (
-                      <button
-                        key={hex}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          updateDrawing(selectedDrawing.id, { properties: { color: hex } });
-                          setCurrentColor(hex);
-                        }}
-                        title={name}
-                        className="h-5 w-5 rounded-md transition-all cursor-pointer hover:scale-110"
-                        style={{ background: hex, border: currentColor === hex ? `2px solid white` : '2px solid transparent' }}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Width Picker */}
-            <div className="relative group/floatwidth">
-              <button className="w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer hover:bg-white/10 text-xs font-bold text-muted-foreground">
-                {currentWidth}
-              </button>
-              <div className={widthPopupClass}>
-                <div className="p-2 rounded-xl shadow-xl bg-card border border-border min-w-[100px] flex flex-col gap-1">
-                  {WIDTHS.map(({ w, label }) => (
-                    <button
-                      key={w}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        updateDrawing(selectedDrawing.id, { properties: { width: w } });
-                        setCurrentWidth(w);
-                      }}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded-md transition-all cursor-pointer hover:bg-white/5"
-                    >
-                      <div className="rounded-full flex-1" style={{ height: `${w * 1.5}px`, background: currentWidth === w ? '#3b82f6' : '#475569' }} />
-                      <span className="text-[9px] font-semibold text-muted-foreground">{label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="w-px h-5 bg-border mx-1" />
-
-            {/* Delete Button */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                deleteDrawing(selectedDrawing.id);
-                setSelectedDrawing(null);
-              }}
-              className="w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </div>
-        );
-      })()}
+      <FloatingToolbar
+        selectedDrawing={selectedDrawing}
+        currentColor={currentColor}
+        currentWidth={currentWidth}
+        updateDrawing={updateDrawing}
+        setCurrentColor={setCurrentColor}
+        setCurrentWidth={setCurrentWidth}
+        deleteDrawing={deleteDrawing}
+        setSelectedDrawing={setSelectedDrawing}
+      />
     </div>
   );
 }
