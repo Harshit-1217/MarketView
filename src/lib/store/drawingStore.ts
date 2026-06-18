@@ -46,7 +46,7 @@ interface DrawingState {
   setAreDrawingsLocked: (locked: boolean) => void;
   setAreDrawingsHidden: (hidden: boolean) => void;
   
-  addDrawing: (drawing: Omit<Drawing, 'id'>) => Promise<void>;
+  addDrawing: (drawing: Omit<Drawing, 'id'>) => Promise<string | undefined>;
   updateDrawing: (id: string, updates: Partial<Drawing>) => Promise<void>;
   deleteDrawing: (id: string) => Promise<void>;
   fetchDrawings: (symbol: string) => Promise<void>;
@@ -148,7 +148,7 @@ export const useDrawingStore = create<DrawingState>((set, get) => ({
           future: [],
           drawings: [...state.drawings, { ...drawingData, id: tempId }]
         }));
-        return;
+        return tempId;
       }
 
       const newDrawing = {
@@ -179,10 +179,12 @@ export const useDrawingStore = create<DrawingState>((set, get) => ({
             properties: data.properties as DrawingProperties
           }]
         }));
+        return data.id;
       }
     } catch (e) {
       console.error('Error adding drawing:', e);
     }
+    return undefined;
   },
 
   updateDrawing: async (id, updates) => {

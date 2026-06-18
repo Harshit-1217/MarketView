@@ -52,7 +52,7 @@ export default function Sidebar() {
       <div className="flex flex-col items-center gap-5 w-full">
         {/* Brand */}
         <div className={`flex items-center gap-2.5 w-full px-3 ${expanded ? 'justify-start' : 'justify-center'}`}>
-          <Link href="/" className="relative h-8 w-8 rounded-xl flex items-center justify-center shrink-0 hover:scale-105 transition-transform"
+          <Link href="/" aria-label="Home" className="relative h-8 w-8 rounded-xl flex items-center justify-center shrink-0 hover:scale-105 transition-transform"
             style={{ background: 'linear-gradient(135deg,#3b82f6,#6366f1)', boxShadow: '0 0 16px rgba(59,130,246,0.5)' }}>
             <TrendingUp className="h-4 w-4 text-white" />
           </Link>
@@ -153,6 +153,7 @@ export default function Sidebar() {
         <button
           onClick={handleSignOut}
           title="Sign Out"
+          aria-label="Sign Out"
           className={`flex items-center gap-2.5 w-full px-1 py-2 rounded-xl transition-all cursor-pointer group ${expanded ? 'justify-start' : 'justify-center'}`}
           style={{ color: '#64748b' }}
           onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; e.currentTarget.style.color = '#ef4444'; }}
@@ -166,6 +167,7 @@ export default function Sidebar() {
         <button
           onClick={() => setExpanded((v) => !v)}
           title={expanded ? 'Collapse' : 'Expand'}
+          aria-label={expanded ? 'Collapse Sidebar' : 'Expand Sidebar'}
           className="flex items-center justify-center w-full py-2 rounded-xl transition-all cursor-pointer group"
           style={{ color: '#475569' }}
           onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(59,130,246,0.08)'; e.currentTarget.style.color = '#3b82f6'; }}

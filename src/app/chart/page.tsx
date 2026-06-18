@@ -20,7 +20,7 @@ export default function ChartPage() {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
       {/* 1. Middle Chart Workspace Area (now on the left) */}
-      <div className="flex-1 flex flex-row min-w-0 h-full relative">
+      <main className="flex-1 flex flex-row min-w-0 h-full relative">
         <DrawingToolbar />
         
         <div className="flex-1 flex flex-col min-w-0 h-full relative">
@@ -32,7 +32,7 @@ export default function ChartPage() {
             <ChartLayout onOpenIndicators={handleOpenIndicators} />
           </div>
         </div>
-      </div>
+      </main>
 
       {/* 2. Right Side Panels */}
       <div className="flex h-full shrink-0">

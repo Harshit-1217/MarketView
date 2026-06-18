@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 export type ChartLayoutType = '1' | '2' | '4';
 export type ChartSeriesType = 'candlestick' | 'line' | 'area';
@@ -34,65 +35,79 @@ const DEFAULT_CHARTS: ChartConfig[] = [
   { id: 'chart-3', symbol: 'INFY.NS', timeframe: '1D', chartType: 'candlestick' },
 ];
 
-export const useChartStore = create<ChartState>((set, get) => ({
-  layout: '1',
-  charts: DEFAULT_CHARTS,
-  activeChartId: 'chart-0',
-  syncCrosshair: true,
-  syncTimeframe: false,
-  crosshairPosition: null,
+export const useChartStore = create<ChartState>()(
+  persist(
+    (set, get) => ({
+      layout: '1',
+      charts: DEFAULT_CHARTS,
+      activeChartId: 'chart-0',
+      syncCrosshair: true,
+      syncTimeframe: false,
+      crosshairPosition: null,
 
-  setLayout: (layout) => {
-    set({ layout });
-  },
-  
-  setActiveChartId: (activeChartId) => {
-    set({ activeChartId });
-  },
-
-  updateChartConfig: (id, updates) => {
-    const { charts, syncTimeframe } = get();
-    const targetChart = charts.find(c => c.id === id);
-    if (!targetChart) return;
-
-    const updatedCharts = charts.map((c) => {
-      if (c.id === id) {
-        return { ...c, ...updates };
-      }
+      setLayout: (layout) => {
+        set({ layout });
+      },
       
-      // If syncTimeframe is active and we are updating timeframe, apply to all charts
-      if (syncTimeframe && updates.timeframe && c.id !== id) {
-        return { ...c, timeframe: updates.timeframe };
-      }
-      
-      return c;
-    });
+      setActiveChartId: (activeChartId) => {
+        set({ activeChartId });
+      },
 
-    set({ charts: updatedCharts });
-  },
+      updateChartConfig: (id, updates) => {
+        const { charts, syncTimeframe } = get();
+        const targetChart = charts.find(c => c.id === id);
+        if (!targetChart) return;
 
-  setSyncCrosshair: (syncCrosshair) => {
-    set({ syncCrosshair });
-  },
+        const updatedCharts = charts.map((c) => {
+          if (c.id === id) {
+            return { ...c, ...updates };
+          }
+          
+          // If syncTimeframe is active and we are updating timeframe, apply to all charts
+          if (syncTimeframe && updates.timeframe && c.id !== id) {
+            return { ...c, timeframe: updates.timeframe };
+          }
+          
+          return c;
+        });
 
-  setSyncTimeframe: (syncTimeframe) => {
-    const { charts, activeChartId } = get();
-    const activeChart = charts.find(c => c.id === activeChartId);
-    
-    set({ syncTimeframe });
-    
-    // If sync becomes active, align all timeframes to active chart timeframe
-    if (syncTimeframe && activeChart) {
-      set({
-        charts: charts.map((c) => ({
-          ...c,
-          timeframe: activeChart.timeframe,
-        })),
-      });
+        set({ charts: updatedCharts });
+      },
+
+      setSyncCrosshair: (syncCrosshair) => {
+        set({ syncCrosshair });
+      },
+
+      setSyncTimeframe: (syncTimeframe) => {
+        const { charts, activeChartId } = get();
+        const activeChart = charts.find(c => c.id === activeChartId);
+        
+        set({ syncTimeframe });
+        
+        // If sync becomes active, align all timeframes to active chart timeframe
+        if (syncTimeframe && activeChart) {
+          set({
+            charts: charts.map((c) => ({
+              ...c,
+              timeframe: activeChart.timeframe,
+            })),
+          });
+        }
+      },
+
+      setCrosshairPosition: (crosshairPosition) => {
+        set({ crosshairPosition });
+      },
+    }),
+    {
+      name: 'marketview-charts',
+      partialize: (state) => ({ 
+        layout: state.layout,
+        charts: state.charts,
+        activeChartId: state.activeChartId,
+        syncCrosshair: state.syncCrosshair,
+        syncTimeframe: state.syncTimeframe
+      }), // Don't persist crosshairPosition
     }
-  },
-
-  setCrosshairPosition: (crosshairPosition) => {
-    set({ crosshairPosition });
-  },
-}));
+  )
+);

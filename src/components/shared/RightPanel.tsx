@@ -177,6 +177,7 @@ export default function RightPanel() {
     <button
       onClick={() => setExpanded(true)}
       title="Open Watchlist & Alerts"
+      aria-label="Open Watchlist and Alerts"
       className="fixed right-0 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center gap-1.5 py-3 px-1.5 bg-card border border-r-0 border-border rounded-l-xl shadow-lg text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition cursor-pointer"
     >
       <Star className="h-4 w-4" />
@@ -242,6 +243,7 @@ export default function RightPanel() {
         <button
           onClick={() => setExpanded(false)}
           title="Collapse panel"
+          aria-label="Collapse panel"
           className="px-3 text-muted-foreground hover:text-foreground hover:bg-secondary/40 transition cursor-pointer border-b-2 border-transparent"
         >
           <ChevronRight className="h-4 w-4" />
