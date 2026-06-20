@@ -128,6 +128,17 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
     areDrawingsHiddenRef.current = areDrawingsHidden;
   }, [activeDrawings, drawingPoints, isDrawing, activeTool, currentColor, currentWidth, areDrawingsHidden]);
 
+  useEffect(() => {
+    if (canvasRef.current) {
+      const isDrawingTool = activeTool && !['crosshair', 'dot', 'arrowCursor'].includes(activeTool as string);
+      if (isDrawingTool && !areDrawingsLocked) {
+        canvasRef.current.style.pointerEvents = 'auto';
+      } else if (!isCanvasInteractiveRef.current) {
+        canvasRef.current.style.pointerEvents = 'none';
+      }
+    }
+  }, [activeTool, areDrawingsLocked]);
+
   // Oscillator types that need sub-panels (not overlays)
   const OSCILLATOR_TYPES = ['rsi', 'macd', 'atr', 'stochRsi', 'stochastic', 'cci', 'williamsR', 'obv'];
   const oscIndicators = indicators.filter(ind => OSCILLATOR_TYPES.includes(ind.type));
@@ -710,6 +721,29 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
     );
   }, []);
 
+  const getTimeFromCoordinate = (x: number): number | null => {
+    if (!chartObj.current) return null;
+    const timeScale = chartObj.current.timeScale();
+    let t = timeScale.coordinateToTime(x) as number | null;
+    if (t === null && candles.length >= 2) {
+      const logical = timeScale.coordinateToLogical(x);
+      if (logical !== null) {
+        if (logical > candles.length - 1) {
+          const last = candles[candles.length - 1];
+          const prev = candles[candles.length - 2];
+          const dt = last.time - prev.time;
+          t = last.time + Math.round(logical - (candles.length - 1)) * dt;
+        } else if (logical < 0) {
+          const first = candles[0];
+          const second = candles[1];
+          const dt = second.time - first.time;
+          t = first.time + Math.round(logical) * dt;
+        }
+      }
+    }
+    return t;
+  };
+
   // Handle Drawings Canvas Clicks
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!activeTool || !chartObj.current || !mainSeriesObj.current || !canvasRef.current || areDrawingsLocked) return;
@@ -718,7 +752,7 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    const time = chartObj.current.timeScale().coordinateToTime(x);
+    const time = getTimeFromCoordinate(x);
     let price = mainSeriesObj.current.coordinateToPrice(y);
 
     if (time === null || price === null) return;
@@ -910,7 +944,7 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
         let newTime = pt.time;
         const origX = chartObj.current.timeScale().timeToCoordinate(pt.time as any);
         if (origX !== null) {
-          const t = chartObj.current.timeScale().coordinateToTime(origX + dx);
+          const t = getTimeFromCoordinate(origX + dx);
           if (t !== null) newTime = t;
         }
 
@@ -945,7 +979,7 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
 
     if (!isDrawing || drawingPoints.length === 0) return;
 
-    const time = chartObj.current.timeScale().coordinateToTime(x);
+    const time = getTimeFromCoordinate(x);
     let price = mainSeriesObj.current.coordinateToPrice(y);
 
     if (time === null || price === null) return;
@@ -1132,9 +1166,6 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
           onDoubleClick={handleCanvasDoubleClick}
           className="absolute top-0 left-0 z-20 w-full"
           style={{
-            pointerEvents: activeTool && !['crosshair', 'dot', 'arrowCursor'].includes(activeTool as string) && !areDrawingsLocked 
-              ? 'auto' 
-              : 'none',
             width: containerSize.w,
             height: Math.floor(containerSize.h * (oscIndicators.length === 0 ? 1.0 : Math.max(0.45, 0.75 - oscIndicators.length * 0.08)))
           }}
