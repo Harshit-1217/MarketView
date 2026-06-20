@@ -56,10 +56,21 @@ export const renderAllDrawings = (
         ctx.moveTo(0, p1.y);
         ctx.lineTo(canvas.width, p1.y);
         ctx.stroke();
-        
+        // Drag handle at centre
         ctx.beginPath();
-        ctx.arc(canvas.width / 2, p1.y, 4, 0, Math.PI * 2);
+        ctx.arc(canvas.width / 2, p1.y, 5, 0, Math.PI * 2);
         ctx.fill();
+        // Price label at right edge
+        if (drawing.properties.showPrice !== false) {
+          const price = drawing.points[0].price;
+          const text = price.toFixed(2);
+          ctx.font = 'bold 11px Arial';
+          const tw = ctx.measureText(text).width;
+          ctx.fillStyle = 'rgba(0,0,0,0.75)';
+          ctx.fillRect(canvas.width - tw - 14, p1.y - 9, tw + 8, 17);
+          ctx.fillStyle = drawing.properties.color || '#2962ff';
+          ctx.fillText(text, canvas.width - tw - 10, p1.y + 3);
+        }
       }
     } else if (drawing.type === 'horizontalRay' && points.length >= 1) {
       const [p1] = points;
@@ -68,10 +79,21 @@ export const renderAllDrawings = (
         ctx.moveTo(p1.x, p1.y);
         ctx.lineTo(canvas.width, p1.y);
         ctx.stroke();
-        
+        // Drag handle at origin
         ctx.beginPath();
-        ctx.arc(p1.x, p1.y, 4, 0, Math.PI * 2);
+        ctx.arc(p1.x, p1.y, 5, 0, Math.PI * 2);
         ctx.fill();
+        // Price label at right edge
+        if (drawing.properties.showPrice !== false) {
+          const price = drawing.points[0].price;
+          const text = price.toFixed(2);
+          ctx.font = 'bold 11px Arial';
+          const tw = ctx.measureText(text).width;
+          ctx.fillStyle = 'rgba(0,0,0,0.75)';
+          ctx.fillRect(canvas.width - tw - 14, p1.y - 9, tw + 8, 17);
+          ctx.fillStyle = drawing.properties.color || '#2962ff';
+          ctx.fillText(text, canvas.width - tw - 10, p1.y + 3);
+        }
       }
     } else if (drawing.type === 'vertical' && points.length >= 1) {
       const [p1] = points;
@@ -80,6 +102,10 @@ export const renderAllDrawings = (
         ctx.moveTo(p1.x, 0);
         ctx.lineTo(p1.x, canvas.height);
         ctx.stroke();
+        // Drag handle at centre
+        ctx.beginPath();
+        ctx.arc(p1.x, canvas.height / 2, 5, 0, Math.PI * 2);
+        ctx.fill();
       }
     } else if (drawing.type === 'rectangle' && points.length === 2) {
       const [p1, p2] = points;
@@ -280,14 +306,6 @@ export const renderAllDrawings = (
         }
         ctx.stroke();
       }
-    } else if (drawing.type === 'horizontalRay' && points.length >= 1) {
-      const [p1] = points;
-      if (p1.x !== null && p1.y !== null) {
-        ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(canvas.width, p1.y);
-        ctx.stroke();
-      }
     } else if (drawing.type === 'crossLine' && points.length >= 1) {
       const [p1] = points;
       if (p1.x !== null && p1.y !== null) {
@@ -297,6 +315,21 @@ export const renderAllDrawings = (
         ctx.moveTo(p1.x, 0);
         ctx.lineTo(p1.x, canvas.height);
         ctx.stroke();
+        // Drag handle at intersection
+        ctx.beginPath();
+        ctx.arc(p1.x, p1.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        // Price label at right edge
+        if (drawing.properties.showPrice !== false) {
+          const price = drawing.points[0].price;
+          const text = price.toFixed(2);
+          ctx.font = 'bold 11px Arial';
+          const tw = ctx.measureText(text).width;
+          ctx.fillStyle = 'rgba(0,0,0,0.75)';
+          ctx.fillRect(canvas.width - tw - 14, p1.y - 9, tw + 8, 17);
+          ctx.fillStyle = drawing.properties.color || '#2962ff';
+          ctx.fillText(text, canvas.width - tw - 10, p1.y + 3);
+        }
       }
     } else if (drawing.type === 'infoLine' && points.length === 2) {
       const [p1, p2] = points;
@@ -368,9 +401,16 @@ export const renderAllDrawings = (
       }
     }
 
-    // Draw visible drag points for all non-horizontal tools
+    // Draw visible drag-point handles for multi-point tools.
+    // Single-point tools (horizontal, horizontalRay, vertical, crossLine) render
+    // their own handles above, so we skip them here to avoid double-drawing.
+    const SINGLE_PT_TYPES = ['horizontal', 'horizontalRay', 'vertical', 'crossLine'];
+    // Diagonal tools & fib tools also render their own labels/points, skip generic dot.
+    const DIAGONAL_TYPES = ['trend', 'ray', 'extendedLine', 'arrow', 'ruler', 'infoLine', 'trendAngle'];
+    const FIB_TYPES = ['fib', 'fibExtension', 'pitchfork'];
+
     const validPtsAll = points.filter(p => p.x !== null && p.y !== null);
-    if (!['horizontal', 'horizontalRay'].includes(drawing.type)) {
+    if (!SINGLE_PT_TYPES.includes(drawing.type)) {
       ctx.fillStyle = drawing.properties.color || '#2962ff';
       validPtsAll.forEach(pt => {
         ctx.beginPath();
@@ -379,8 +419,16 @@ export const renderAllDrawings = (
       });
     }
 
-    // Show price label
-    if (drawing.properties.showPrice && points.length > 0) {
+    // Generic price label — only for non-diagonal, non-fib, non-single-point tools
+    // (horizontal/ray/crossLine already rendered their label above;
+    //  fib tools render per-level labels in their own block;
+    //  diagonal lines never show a price label per TradingView convention).
+    const skipGenericPrice =
+      SINGLE_PT_TYPES.includes(drawing.type) ||
+      DIAGONAL_TYPES.includes(drawing.type) ||
+      FIB_TYPES.includes(drawing.type);
+
+    if (!skipGenericPrice && drawing.properties.showPrice && points.length > 0) {
       const validPts = points.filter(p => p.x !== null && p.y !== null);
       if (validPts.length > 0) {
         let labelX = validPts[0].x as number;
@@ -392,7 +440,7 @@ export const renderAllDrawings = (
           let rightPt = validPts[1];
           let leftPrice = drawing.points[0].price;
           let rightPrice = drawing.points[1].price;
-          if (validPts[1].x! < validPts[0].x!) {
+          if ((validPts[1].x as number) < (validPts[0].x as number)) {
             leftPt = validPts[1];
             rightPt = validPts[0];
             leftPrice = drawing.points[1].price;
@@ -413,25 +461,13 @@ export const renderAllDrawings = (
             priceVal = leftPrice;
           }
         }
-        
+
         ctx.font = 'bold 11px Arial';
         const text = priceVal.toFixed(2);
         const textWidth = ctx.measureText(text).width;
 
-        if (validPts.length === 1) {
-          if (drawing.properties.pricePosition === 'right') {
-            labelX = canvas.width - textWidth - 14;
-          } else if (drawing.properties.pricePosition === 'center') {
-            labelX = canvas.width / 2 - textWidth / 2 - 4;
-          } else {
-            labelX = 4;
-          }
-        }
-        
-        // Background for text
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
         ctx.fillRect(labelX + 6, labelY - 14, textWidth + 8, 18);
-        
         ctx.fillStyle = drawing.properties.color || '#2962ff';
         ctx.fillText(text, labelX + 10, labelY - 2);
       }
