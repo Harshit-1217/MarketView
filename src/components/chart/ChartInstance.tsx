@@ -27,7 +27,7 @@ import {
 } from '@/lib/indicators/technicals';
 import { Star } from 'lucide-react';
 import { findClosestDrawing as findClosestDrawingLib, findClosestDrawingPoint } from '@/lib/drawing/hitDetection';
-import { drawAllDrawings as renderAllDrawings } from '@/lib/drawing/renderers';
+import { renderAllDrawings } from '@/lib/drawing/renderers';
 import { FloatingToolbar } from './FloatingToolbar';
 
 interface ChartInstanceProps {
