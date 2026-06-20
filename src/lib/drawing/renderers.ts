@@ -1,6 +1,7 @@
 import { Drawing, DrawingPoint } from '@/lib/store/drawingStore';
+import { getCoordinateFromTime } from './hitDetection';
 
-export const drawAllDrawings = (
+export const renderAllDrawings = (
   canvas: HTMLCanvasElement,
   ctx: CanvasRenderingContext2D,
   activeDrawings: Drawing[],
@@ -11,7 +12,8 @@ export const drawAllDrawings = (
   drawingPoints: DrawingPoint[],
   activeTool: string | null,
   currentColor: string,
-  currentWidth: number
+  currentWidth: number,
+  candles: any[]
 ) => {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (areDrawingsHidden) return;
@@ -22,7 +24,7 @@ export const drawAllDrawings = (
     ctx.lineWidth = drawing.properties.width || 2;
 
     const points = drawing.points.map((pt) => {
-      const x = chart.timeScale().timeToCoordinate(pt.time as any);
+      const x = getCoordinateFromTime(pt.time as any, chart, candles);
       const y = mainSeries.priceToCoordinate(pt.price);
       return { x, y };
     });

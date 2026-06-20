@@ -8,20 +8,42 @@ export const distanceToSegment = (px: number, py: number, x1: number, y1: number
   return Math.sqrt((px - (x1 + t * (x2 - x1))) ** 2 + (py - (y1 + t * (y2 - y1))) ** 2);
 };
 
+export const getCoordinateFromTime = (time: number, chart: any, candles: any[]): number | null => {
+  let x = chart.timeScale().timeToCoordinate(time);
+  if (x === null && candles && candles.length >= 2) {
+    const last = candles[candles.length - 1];
+    const prev = candles[candles.length - 2];
+    const first = candles[0];
+    const second = candles[1];
+    
+    if (time > last.time) {
+      const dt = (last.time as number) - (prev.time as number);
+      const logicalOffset = (time - (last.time as number)) / dt;
+      x = chart.timeScale().logicalToCoordinate((candles.length - 1) + logicalOffset);
+    } else if (time < first.time) {
+      const dt = (second.time as number) - (first.time as number);
+      const logicalOffset = ((first.time as number) - time) / dt;
+      x = chart.timeScale().logicalToCoordinate(0 - logicalOffset);
+    }
+  }
+  return x;
+};
+
 export const findClosestDrawingPoint = (
   x: number,
   y: number,
   drawings: Drawing[],
   chart: any,
-  series: any
+  series: any,
+  candles: any[]
 ): { id: string, pointIndex: number } | null => {
-  let closest = null;
+  let closest: { id: string, pointIndex: number } | null = null;
   let minDistance = 10; // 10 pixel threshold for grabbing a point
 
   drawings.forEach(d => {
     if (!d.points) return;
     d.points.forEach((pt, index) => {
-      const sx = chart.timeScale().timeToCoordinate(pt.time as any);
+      const sx = getCoordinateFromTime(pt.time as any, chart, candles);
       const sy = series.priceToCoordinate(pt.price);
       if (sx !== null && sy !== null) {
         const dist = Math.sqrt((x - sx)**2 + (y - sy)**2);
@@ -41,7 +63,8 @@ export const findClosestDrawing = (
   y: number, 
   drawings: Drawing[], 
   chart: any, 
-  series: any
+  series: any,
+  candles: any[]
 ): string | null => {
   let closestId: string | null = null;
   let minDistance = 15; // 15 pixel threshold for erasing/selecting
@@ -50,7 +73,7 @@ export const findClosestDrawing = (
     if (!d.points || d.points.length < 1) return;
     
     const screenPts = d.points.map(pt => {
-      const sx = chart.timeScale().timeToCoordinate(pt.time as any);
+      const sx = getCoordinateFromTime(pt.time as any, chart, candles);
       const sy = series.priceToCoordinate(pt.price);
       return { sx, sy };
     });

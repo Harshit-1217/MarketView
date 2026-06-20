@@ -580,7 +580,8 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
           drawingPointsRef.current,
           activeToolRef.current,
           currentColorRef.current,
-          currentWidthRef.current
+          currentWidthRef.current,
+          candles
         );
       };
 
@@ -706,9 +707,10 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
       y, 
       activeDrawingsRef.current, 
       chartObj.current, 
-      mainSeriesObj.current
+      mainSeriesObj.current,
+      candles
     );
-  }, []);
+  }, [candles]);
 
   const findClosestDrawingPointCb = useCallback((x: number, y: number) => {
     if (!chartObj.current || !mainSeriesObj.current) return null;
@@ -717,9 +719,10 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
       y,
       activeDrawingsRef.current,
       chartObj.current,
-      mainSeriesObj.current
+      mainSeriesObj.current,
+      candles
     );
-  }, []);
+  }, [candles]);
 
   const getTimeFromCoordinate = (x: number): number | null => {
     if (!chartObj.current) return null;
@@ -816,12 +819,12 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
       return; // Stop further processing
     }
 
-    if (['trend', 'rectangle', 'fib', 'ellipse', 'ray', 'arrow', 'extendedLine', 'ruler', 'brush', 'infoLine', 'trendAngle'].includes(activeTool as string)) {
+    if (['trend', 'rectangle', 'fib', 'fibExtension', 'pitchfork', 'ellipse', 'ray', 'arrow', 'extendedLine', 'ruler', 'brush', 'infoLine', 'trendAngle'].includes(activeTool as string)) {
       if (!isDrawing) {
         setIsDrawing(true);
         setDrawingPoints(activeTool === 'brush' ? [point] : [point, point]);
       }
-    } else if (['parallelChannel', 'triangle', 'curve', 'fibExtension', 'pitchfork'].includes(activeTool as string)) {
+    } else if (['parallelChannel', 'triangle', 'curve'].includes(activeTool as string)) {
       if (!isDrawing) {
         setIsDrawing(true);
         setDrawingPoints([point, point]);
@@ -893,7 +896,7 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
 
     if (!isDrawing || !activeTool || !chartObj.current || !mainSeriesObj.current || !canvasRef.current || areDrawingsLocked) return;
 
-    if (['trend', 'rectangle', 'fib', 'ellipse', 'ray', 'arrow', 'extendedLine', 'ruler', 'brush', 'infoLine', 'trendAngle'].includes(activeTool as string)) {
+    if (['trend', 'rectangle', 'fib', 'fibExtension', 'pitchfork', 'ellipse', 'ray', 'arrow', 'extendedLine', 'ruler', 'brush', 'infoLine', 'trendAngle'].includes(activeTool as string)) {
       if (drawingPoints.length >= 2) {
         addDrawing({
           symbol: config.symbol,
