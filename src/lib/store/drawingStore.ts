@@ -13,6 +13,9 @@ export interface DrawingProperties {
   width?: number;
   text?: string;
   fillColor?: string;
+  extendLine?: boolean;
+  showPrice?: boolean;
+  pricePosition?: 'left' | 'center' | 'right';
 }
 
 export interface Drawing {

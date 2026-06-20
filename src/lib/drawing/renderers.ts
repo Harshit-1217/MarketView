@@ -32,8 +32,15 @@ export const drawAllDrawings = (
       const [p1, p2] = points;
       if (p1.x !== null && p1.y !== null && p2.x !== null && p2.y !== null) {
         ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
+        if (drawing.properties.extendLine) {
+           const dx = p2.x - p1.x;
+           const dy = p2.y - p1.y;
+           ctx.moveTo(p1.x - dx * 2000, p1.y - dy * 2000);
+           ctx.lineTo(p1.x + dx * 2000, p1.y + dy * 2000);
+        } else {
+           ctx.moveTo(p1.x, p1.y);
+           ctx.lineTo(p2.x, p2.y);
+        }
         ctx.stroke();
         ctx.beginPath();
         ctx.arc(p1.x, p1.y, 4, 0, Math.PI * 2);
@@ -47,6 +54,22 @@ export const drawAllDrawings = (
         ctx.moveTo(0, p1.y);
         ctx.lineTo(canvas.width, p1.y);
         ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.arc(canvas.width / 2, p1.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (drawing.type === 'horizontalRay' && points.length >= 1) {
+      const [p1] = points;
+      if (p1.x !== null && p1.y !== null) {
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(canvas.width, p1.y);
+        ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.arc(p1.x, p1.y, 4, 0, Math.PI * 2);
+        ctx.fill();
       }
     } else if (drawing.type === 'vertical' && points.length >= 1) {
       const [p1] = points;
@@ -65,7 +88,7 @@ export const drawAllDrawings = (
         ctx.fillStyle = drawing.properties.fillColor || 'rgba(41, 98, 255, 0.15)';
         ctx.fill();
       }
-    } else if (drawing.type === 'fib' && points.length === 2) {
+    } else if (['fib', 'fibExtension', 'pitchfork'].includes(drawing.type) && points.length >= 2) {
       const [p1, p2] = points;
       if (p1.x !== null && p1.y !== null && p2.x !== null && p2.y !== null) {
         ctx.beginPath();
@@ -87,14 +110,38 @@ export const drawAllDrawings = (
           const y = y1 + diff * lvl;
           ctx.strokeStyle = colors[idx];
           ctx.beginPath();
-          ctx.moveTo(Math.min(x1, x2), y);
-          ctx.lineTo(Math.max(x1, x2), y);
+          if (drawing.properties.extendLine) {
+            ctx.moveTo(x1 - 2000, y);
+            ctx.lineTo(x2 + 2000, y);
+          } else {
+            ctx.moveTo(Math.min(x1, x2), y);
+            ctx.lineTo(Math.max(x1, x2), y);
+          }
           ctx.stroke();
 
           ctx.fillStyle = colors[idx];
           ctx.font = '9px Arial';
           const priceVal = (drawing.points[0].price + priceDiff * lvl).toFixed(2);
-          ctx.fillText(`Fib ${lvl} (${priceVal})`, Math.min(x1, x2) + 5, y - 4);
+          let textX = Math.min(x1, x2) + 5;
+          if (drawing.properties.pricePosition === 'left') {
+            textX = Math.min(x1, x2) + 5;
+            if (drawing.properties.extendLine) textX = 5;
+          } else if (drawing.properties.pricePosition === 'center') {
+            const textWidth = ctx.measureText(`Fib ${lvl} (${priceVal})`).width;
+            textX = (x1 + x2) / 2 - textWidth / 2;
+            if (drawing.properties.extendLine) textX = canvas.width / 2 - textWidth / 2;
+          } else if (drawing.properties.pricePosition === 'right') {
+            const textWidth = ctx.measureText(`Fib ${lvl} (${priceVal})`).width;
+            textX = Math.max(x1, x2) - textWidth - 5;
+            if (drawing.properties.extendLine) textX = canvas.width - textWidth - 5;
+          } else {
+            if (drawing.properties.extendLine) {
+              textX = Math.max(x1, x2) + 5;
+            }
+          }
+          if (drawing.properties.showPrice !== false) {
+            ctx.fillText(`Fib ${lvl} (${priceVal})`, textX, y - 4);
+          }
         });
       }
     } else if (drawing.type === 'text' && points.length >= 1) {
@@ -124,9 +171,13 @@ export const drawAllDrawings = (
       const [p1, p2] = points;
       if (p1.x !== null && p1.y !== null && p2.x !== null && p2.y !== null) {
         ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
         const dx = p2.x - p1.x;
         const dy = p2.y - p1.y;
+        if (drawing.properties.extendLine) {
+          ctx.moveTo(p1.x - dx * 2000, p1.y - dy * 2000);
+        } else {
+          ctx.moveTo(p1.x, p1.y);
+        }
         ctx.lineTo(p1.x + dx * 2000, p1.y + dy * 2000);
         ctx.stroke();
       }
@@ -312,6 +363,75 @@ export const drawAllDrawings = (
         ctx.moveTo(p1.x as number, p1.y as number);
         ctx.quadraticCurveTo(p2.x as number, p2.y as number, p3.x as number, p3.y as number);
         ctx.stroke();
+      }
+    }
+
+    // Draw visible drag points for all non-horizontal tools
+    const validPtsAll = points.filter(p => p.x !== null && p.y !== null);
+    if (!['horizontal', 'horizontalRay'].includes(drawing.type)) {
+      ctx.fillStyle = drawing.properties.color || '#2962ff';
+      validPtsAll.forEach(pt => {
+        ctx.beginPath();
+        ctx.arc(pt.x as number, pt.y as number, 4, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    // Show price label
+    if (drawing.properties.showPrice && points.length > 0) {
+      const validPts = points.filter(p => p.x !== null && p.y !== null);
+      if (validPts.length > 0) {
+        let labelX = validPts[0].x as number;
+        let labelY = validPts[0].y as number;
+        let priceVal = drawing.points[0].price;
+
+        if (validPts.length >= 2) {
+          let leftPt = validPts[0];
+          let rightPt = validPts[1];
+          let leftPrice = drawing.points[0].price;
+          let rightPrice = drawing.points[1].price;
+          if (validPts[1].x! < validPts[0].x!) {
+            leftPt = validPts[1];
+            rightPt = validPts[0];
+            leftPrice = drawing.points[1].price;
+            rightPrice = drawing.points[0].price;
+          }
+
+          if (drawing.properties.pricePosition === 'right') {
+            labelX = rightPt.x as number;
+            labelY = rightPt.y as number;
+            priceVal = rightPrice;
+          } else if (drawing.properties.pricePosition === 'center') {
+            labelX = ((leftPt.x as number) + (rightPt.x as number)) / 2;
+            labelY = ((leftPt.y as number) + (rightPt.y as number)) / 2;
+            priceVal = (leftPrice + rightPrice) / 2;
+          } else {
+            labelX = leftPt.x as number;
+            labelY = leftPt.y as number;
+            priceVal = leftPrice;
+          }
+        }
+        
+        ctx.font = 'bold 11px Arial';
+        const text = priceVal.toFixed(2);
+        const textWidth = ctx.measureText(text).width;
+
+        if (validPts.length === 1) {
+          if (drawing.properties.pricePosition === 'right') {
+            labelX = canvas.width - textWidth - 14;
+          } else if (drawing.properties.pricePosition === 'center') {
+            labelX = canvas.width / 2 - textWidth / 2 - 4;
+          } else {
+            labelX = 4;
+          }
+        }
+        
+        // Background for text
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(labelX + 6, labelY - 14, textWidth + 8, 18);
+        
+        ctx.fillStyle = drawing.properties.color || '#2962ff';
+        ctx.fillText(text, labelX + 10, labelY - 2);
       }
     }
   });

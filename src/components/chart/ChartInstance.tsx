@@ -26,7 +26,7 @@ import {
   calculatePivotPoints,
 } from '@/lib/indicators/technicals';
 import { Star } from 'lucide-react';
-import { findClosestDrawing as findClosestDrawingLib } from '@/lib/drawing/hitDetection';
+import { findClosestDrawing as findClosestDrawingLib, findClosestDrawingPoint } from '@/lib/drawing/hitDetection';
 import { drawAllDrawings as renderAllDrawings } from '@/lib/drawing/renderers';
 import { FloatingToolbar } from './FloatingToolbar';
 
@@ -87,6 +87,18 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
   const [textInput, setTextInput] = useState('');
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [selectedDrawing, setSelectedDrawing] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [isDraggingUI, setIsDraggingUI] = useState(false);
+  const dragStateRef = useRef<{
+    id: string;
+    type: 'point' | 'body';
+    pointIndex?: number;
+    startX: number;
+    startY: number;
+    originalPoints: DrawingPoint[];
+    currentPoints: DrawingPoint[];
+  } | null>(null);
+  const isCrosshairActiveRef = useRef(false);
+  const isCanvasInteractiveRef = useRef(false);
 
   useEffect(() => {
     const handleClickOutside = () => setContextMenu(null);
@@ -497,9 +509,18 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
 
       // Handle Crosshair Position updates for Legend and Crosshair Sync
       chart.subscribeCrosshairMove((param: any) => {
-        if (!param || !param.time || param.point === undefined) {
+        if (!param || !param.time || param.point === undefined || param.point.x < 0 || param.point.y < 0) {
+          isCrosshairActiveRef.current = false;
+          setCandles(prev => {
+            if (prev.length > 0) {
+              const last = prev[prev.length - 1];
+              setOhlc({ o: last.open, h: last.high, l: last.low, c: last.close, v: last.volume });
+            }
+            return prev;
+          });
           return;
         }
+        isCrosshairActiveRef.current = true;
         
         // Find candle at crosshair time
         const priceData = param.seriesData.get(mainSeries);
@@ -528,10 +549,19 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
+        let drawingsToRender = activeDrawingsRef.current;
+        if (dragStateRef.current) {
+          drawingsToRender = drawingsToRender.map(d => 
+            d.id === dragStateRef.current!.id 
+              ? { ...d, points: dragStateRef.current!.currentPoints } 
+              : d
+          );
+        }
+
         renderAllDrawings(
           canvas,
           ctx,
-          activeDrawingsRef.current,
+          drawingsToRender,
           chart,
           mainSeries,
           areDrawingsHiddenRef.current,
@@ -580,13 +610,15 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
             }
           });
 
-          setOhlc({
-            o: realtimeCandle.open,
-            h: realtimeCandle.high,
-            l: realtimeCandle.low,
-            c: realtimeCandle.close,
-            v: realtimeCandle.volume,
-          });
+          if (!isCrosshairActiveRef.current) {
+            setOhlc({
+              o: realtimeCandle.open,
+              h: realtimeCandle.high,
+              l: realtimeCandle.low,
+              c: realtimeCandle.close,
+              v: realtimeCandle.volume,
+            });
+          }
         });
       }
 
@@ -667,6 +699,17 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
     );
   }, []);
 
+  const findClosestDrawingPointCb = useCallback((x: number, y: number) => {
+    if (!chartObj.current || !mainSeriesObj.current) return null;
+    return findClosestDrawingPoint(
+      x,
+      y,
+      activeDrawingsRef.current,
+      chartObj.current,
+      mainSeriesObj.current
+    );
+  }, []);
+
   // Handle Drawings Canvas Clicks
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!activeTool || !chartObj.current || !mainSeriesObj.current || !canvasRef.current || areDrawingsLocked) return;
@@ -691,17 +734,49 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
     const point = { time, price };
 
     if (!activeTool || activeTool === 'crosshair' || activeTool === 'arrowCursor' || activeTool === 'eraser') {
+      const closestPoint = findClosestDrawingPointCb(x, y);
+      if (closestPoint && activeTool !== 'eraser') {
+        const d = activeDrawingsRef.current.find(d => d.id === closestPoint.id);
+        if (d) {
+          dragStateRef.current = {
+            id: d.id,
+            type: 'point',
+            pointIndex: closestPoint.pointIndex,
+            startX: x,
+            startY: y,
+            originalPoints: [...d.points],
+            currentPoints: [...d.points]
+          };
+          setSelectedDrawing({ id: d.id, x: e.clientX, y: e.clientY });
+          setIsDraggingUI(true);
+        }
+        return;
+      }
+
       const closestId = findClosestDrawing(x, y);
 
       if (closestId) {
         if (activeTool === 'eraser') {
           deleteDrawing(closestId);
         } else {
+          const d = activeDrawingsRef.current.find(d => d.id === closestId);
+          if (d) {
+            dragStateRef.current = {
+              id: d.id,
+              type: 'body',
+              startX: x,
+              startY: y,
+              originalPoints: [...d.points],
+              currentPoints: [...d.points]
+            };
+            setIsDraggingUI(true);
+          }
           setSelectedDrawing({ id: closestId, x: e.clientX, y: e.clientY });
         }
       } else {
         if (activeTool !== 'eraser') {
           setSelectedDrawing(null);
+          dragStateRef.current = null;
         }
       }
       return; // Stop further processing
@@ -712,7 +787,7 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
         setIsDrawing(true);
         setDrawingPoints(activeTool === 'brush' ? [point] : [point, point]);
       }
-    } else if (['parallelChannel', 'triangle', 'curve'].includes(activeTool as string)) {
+    } else if (['parallelChannel', 'triangle', 'curve', 'fibExtension', 'pitchfork'].includes(activeTool as string)) {
       if (!isDrawing) {
         setIsDrawing(true);
         setDrawingPoints([point, point]);
@@ -775,6 +850,13 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
   };
 
   const handleCanvasMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (dragStateRef.current) {
+      updateDrawing(dragStateRef.current.id, { points: dragStateRef.current.currentPoints });
+      dragStateRef.current = null;
+      setIsDraggingUI(false);
+      return;
+    }
+
     if (!isDrawing || !activeTool || !chartObj.current || !mainSeriesObj.current || !canvasRef.current || areDrawingsLocked) return;
 
     if (['trend', 'rectangle', 'fib', 'ellipse', 'ray', 'arrow', 'extendedLine', 'ruler', 'brush', 'infoLine', 'trendAngle'].includes(activeTool as string)) {
@@ -811,11 +893,57 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
   };
 
   const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing || drawingPoints.length === 0 || !chartObj.current || !mainSeriesObj.current || !canvasRef.current) return;
+    if (!chartObj.current || !mainSeriesObj.current || !canvasRef.current) return;
 
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+
+    if (dragStateRef.current) {
+      const state = dragStateRef.current;
+      const dx = x - state.startX;
+      const dy = y - state.startY;
+
+      const newPoints = state.originalPoints.map((pt, i) => {
+        if (state.type === 'point' && i !== state.pointIndex) return pt;
+        
+        let newTime = pt.time;
+        const origX = chartObj.current.timeScale().timeToCoordinate(pt.time as any);
+        if (origX !== null) {
+          const t = chartObj.current.timeScale().coordinateToTime(origX + dx);
+          if (t !== null) newTime = t;
+        }
+
+        let newPrice = pt.price;
+        const origY = mainSeriesObj.current.priceToCoordinate(pt.price);
+        if (origY !== null) {
+          const p = mainSeriesObj.current.coordinateToPrice(origY + dy);
+          if (p !== null) newPrice = p;
+        }
+        
+        let finalPrice = newPrice;
+        if (isMagnetModeEnabled && origX !== null) {
+          const candle = candles.find(c => c.time === newTime);
+          if (candle) {
+            const ohlc = [candle.open, candle.high, candle.low, candle.close];
+            finalPrice = ohlc.reduce((prev, curr) => Math.abs(curr - finalPrice) < Math.abs(prev - finalPrice) ? curr : prev);
+          }
+        }
+        
+        return { time: newTime, price: finalPrice };
+      });
+      
+      dragStateRef.current.currentPoints = newPoints;
+      
+      if (drawDrawingsRef.current) drawDrawingsRef.current();
+      
+      if (selectedDrawing && selectedDrawing.id === state.id) {
+         setSelectedDrawing({ id: state.id, x: e.clientX, y: e.clientY });
+      }
+      return;
+    }
+
+    if (!isDrawing || drawingPoints.length === 0) return;
 
     const time = chartObj.current.timeScale().coordinateToTime(x);
     let price = mainSeriesObj.current.coordinateToPrice(y);
@@ -865,9 +993,37 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
     setContextMenu({ x: e.clientX, y: e.clientY });
   };
 
+  const handleOuterMouseMove = (e: React.MouseEvent) => {
+    if (activeToolRef.current && activeToolRef.current !== 'crosshair') return; // Canvas handles it
+    if (!canvasRef.current || !chartObj.current || !mainSeriesObj.current) return;
+    if (dragStateRef.current) return; // Keep current pointer events during drag
+    if (areDrawingsLocked) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const ptHit = findClosestDrawingPointCb(x, y);
+    const lineHit = findClosestDrawing(x, y);
+    const hit = ptHit || lineHit;
+
+    if (hit && !isCanvasInteractiveRef.current) {
+      isCanvasInteractiveRef.current = true;
+      canvasRef.current.style.pointerEvents = 'auto';
+      canvasRef.current.style.cursor = ptHit ? 'move' : 'pointer';
+    } else if (!hit && isCanvasInteractiveRef.current) {
+      isCanvasInteractiveRef.current = false;
+      canvasRef.current.style.pointerEvents = 'none';
+      canvasRef.current.style.cursor = 'crosshair';
+    } else if (hit && isCanvasInteractiveRef.current) {
+      canvasRef.current.style.cursor = ptHit ? 'move' : 'pointer';
+    }
+  };
+
   return (
     <div 
       ref={outerRef}
+      onMouseMove={handleOuterMouseMove}
       onClick={(e) => {
         setActiveChartId(config.id);
         const state = useDrawingStore.getState();
@@ -966,25 +1122,24 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
         `}</style>
       )}
 
-      {/* Dynamic Drawings Canvas Layer */}
-      {containerSize.w > 0 && (
+      {/* Drawings overlay canvas */}
+      {containerSize.w > 0 && containerSize.h > 0 && (
         <canvas
           ref={canvasRef}
-          width={containerSize.w}
-          height={Math.floor(containerSize.h * (oscIndicators.length === 0 ? 1.0 : Math.max(0.45, 0.75 - oscIndicators.length * 0.08)))}
           onMouseDown={handleCanvasMouseDown}
-          onMouseMove={handleCanvasMouseMove}
           onMouseUp={handleCanvasMouseUp}
+          onMouseMove={handleCanvasMouseMove}
           onDoubleClick={handleCanvasDoubleClick}
-          className={`absolute top-0 left-0 z-20 w-full ${
-            activeTool && !['crosshair', 'dot', 'arrowCursor'].includes(activeTool as string) && !areDrawingsLocked 
-              ? `pointer-events-auto ${activeTool === 'eraser' ? '' : 'cursor-crosshair'}` 
-              : 'pointer-events-none'
-          }`}
-          style={{ 
-            width: containerSize.w, 
+          className="absolute top-0 left-0 z-20 w-full"
+          style={{
+            pointerEvents: activeTool && !['crosshair', 'dot', 'arrowCursor'].includes(activeTool as string) && !areDrawingsLocked 
+              ? 'auto' 
+              : 'none',
+            width: containerSize.w,
             height: Math.floor(containerSize.h * (oscIndicators.length === 0 ? 1.0 : Math.max(0.45, 0.75 - oscIndicators.length * 0.08)))
           }}
+          width={containerSize.w}
+          height={Math.floor(containerSize.h * (oscIndicators.length === 0 ? 1.0 : Math.max(0.45, 0.75 - oscIndicators.length * 0.08)))}
         />
       )}
 
@@ -1063,16 +1218,18 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
       )}
 
       {/* Floating Drawing Settings Toolbar */}
-      <FloatingToolbar
-        selectedDrawing={selectedDrawing}
-        currentColor={currentColor}
-        currentWidth={currentWidth}
-        updateDrawing={updateDrawing}
-        setCurrentColor={setCurrentColor}
-        setCurrentWidth={setCurrentWidth}
-        deleteDrawing={deleteDrawing}
-        setSelectedDrawing={setSelectedDrawing}
-      />
+      {!isDraggingUI && (
+        <FloatingToolbar
+          selectedDrawing={selectedDrawing}
+          currentColor={currentColor}
+          currentWidth={currentWidth}
+          updateDrawing={updateDrawing}
+          setCurrentColor={setCurrentColor}
+          setCurrentWidth={setCurrentWidth}
+          deleteDrawing={deleteDrawing}
+          setSelectedDrawing={setSelectedDrawing}
+        />
+      )}
     </div>
   );
 }

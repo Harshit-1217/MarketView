@@ -142,8 +142,8 @@ const CATEGORIES: { id: string; defaultTool: DrawingTool | 'select'; items: Tool
     defaultTool: 'fib',
     items: [
       { id: 'fib', name: 'Fibonacci Retracement', shortcut: 'F', icon: Percent },
-      { id: null, name: 'Trend-Based Fib Extension', icon: Percent },
-      { id: null, name: 'Pitchfork', icon: Percent },
+      { id: 'fibExtension', name: 'Trend-Based Fib Extension', icon: Percent },
+      { id: 'pitchfork', name: 'Pitchfork', icon: Percent },
     ]
   },
   {

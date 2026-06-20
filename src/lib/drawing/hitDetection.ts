@@ -8,6 +8,34 @@ export const distanceToSegment = (px: number, py: number, x1: number, y1: number
   return Math.sqrt((px - (x1 + t * (x2 - x1))) ** 2 + (py - (y1 + t * (y2 - y1))) ** 2);
 };
 
+export const findClosestDrawingPoint = (
+  x: number,
+  y: number,
+  drawings: Drawing[],
+  chart: any,
+  series: any
+): { id: string, pointIndex: number } | null => {
+  let closest = null;
+  let minDistance = 10; // 10 pixel threshold for grabbing a point
+
+  drawings.forEach(d => {
+    if (!d.points) return;
+    d.points.forEach((pt, index) => {
+      const sx = chart.timeScale().timeToCoordinate(pt.time as any);
+      const sy = series.priceToCoordinate(pt.price);
+      if (sx !== null && sy !== null) {
+        const dist = Math.sqrt((x - sx)**2 + (y - sy)**2);
+        if (dist < minDistance) {
+          minDistance = dist;
+          closest = { id: d.id, pointIndex: index };
+        }
+      }
+    });
+  });
+
+  return closest;
+};
+
 export const findClosestDrawing = (
   x: number, 
   y: number, 
@@ -63,7 +91,7 @@ export const findClosestDrawing = (
         const minY = Math.min(y1, y2, y3, y4), maxY = Math.max(y1, y2, y3, y4);
         if (x >= minX && x <= maxX && y >= minY && y <= maxY) dist = Math.min(dist, 10);
       }
-    } else if (d.type === 'fib' && screenPts.length >= 2) {
+    } else if (['fib', 'fibExtension', 'pitchfork'].includes(d.type) && screenPts.length >= 2) {
       const { sx: x1, sy: y1 } = screenPts[0];
       const { sx: x2, sy: y2 } = screenPts[1];
       if (x1 !== null && y1 !== null && x2 !== null && y2 !== null) {
@@ -74,7 +102,7 @@ export const findClosestDrawing = (
         const maxX = Math.max(x1, x2);
         levels.forEach(lvl => {
           const ly = y1 + diff * lvl;
-          if (x >= minX && x <= maxX) {
+          if (d.properties?.extendLine || (x >= minX && x <= maxX)) {
             dist = Math.min(dist, Math.abs(y - ly));
           } else {
             dist = Math.min(dist, Math.sqrt(Math.min((x - minX)**2, (x - maxX)**2) + (y - ly)**2));
