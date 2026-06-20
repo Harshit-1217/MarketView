@@ -731,13 +731,13 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
         if (logical > candles.length - 1) {
           const last = candles[candles.length - 1];
           const prev = candles[candles.length - 2];
-          const dt = last.time - prev.time;
-          t = last.time + Math.round(logical - (candles.length - 1)) * dt;
+          const dt = (last.time as number) - (prev.time as number);
+          t = (last.time as number) + Math.round(logical - (candles.length - 1)) * dt;
         } else if (logical < 0) {
           const first = candles[0];
           const second = candles[1];
-          const dt = second.time - first.time;
-          t = first.time + Math.round(logical) * dt;
+          const dt = (second.time as number) - (first.time as number);
+          t = (first.time as number) + Math.round(logical) * dt;
         }
       }
     }
