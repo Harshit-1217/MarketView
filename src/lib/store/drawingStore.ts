@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createClient } from '../supabase/client';
 
-export type DrawingTool = 'crosshair' | 'dot' | 'arrowCursor' | 'eraser' | 'trend' | 'horizontal' | 'vertical' | 'rectangle' | 'fib' | 'text' | 'ray' | 'arrow' | 'brush' | 'ellipse' | 'extendedLine' | 'parallelChannel' | 'triangle' | 'ruler' | 'infoLine' | 'trendAngle' | 'horizontalRay' | 'crossLine' | 'path' | 'curve' | null;
+export type DrawingTool = 'crosshair' | 'dot' | 'arrowCursor' | 'eraser' | 'trend' | 'horizontal' | 'vertical' | 'rectangle' | 'fib' | 'text' | 'ray' | 'arrow' | 'brush' | 'ellipse' | 'extendedLine' | 'parallelChannel' | 'triangle' | 'ruler' | 'infoLine' | 'trendAngle' | 'horizontalRay' | 'crossLine' | 'path' | 'curve' | 'fibExtension' | 'pitchfork' | null;
 
 export interface DrawingPoint {
   time: number; // timestamp in seconds
