@@ -26,7 +26,7 @@ import {
   calculatePivotPoints,
 } from '@/lib/indicators/technicals';
 import { Star } from 'lucide-react';
-import { findClosestDrawing as findClosestDrawingLib, findClosestDrawingPoint } from '@/lib/drawing/hitDetection';
+import { findClosestDrawing as findClosestDrawingLib, findClosestDrawingPoint, getCoordinateFromTime, parseTimeToUnix } from '@/lib/drawing/hitDetection';
 import { renderAllDrawings } from '@/lib/drawing/renderers';
 import { FloatingToolbar } from './FloatingToolbar';
 
@@ -727,24 +727,33 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
   const getTimeFromCoordinate = (x: number): number | null => {
     if (!chartObj.current) return null;
     const timeScale = chartObj.current.timeScale();
-    let t = timeScale.coordinateToTime(x) as number | null;
-    if (t === null && candles.length >= 2) {
+    let t = timeScale.coordinateToTime(x);
+    let tUnix = t !== null ? parseTimeToUnix(t) : null;
+    if (tUnix === null && candles.length >= 2) {
       const logical = timeScale.coordinateToLogical(x);
       if (logical !== null) {
         if (logical > candles.length - 1) {
           const last = candles[candles.length - 1];
           const prev = candles[candles.length - 2];
-          const dt = (last.time as number) - (prev.time as number);
-          t = (last.time as number) + Math.round(logical - (candles.length - 1)) * dt;
+          const lastUnix = parseTimeToUnix(last.time);
+          const prevUnix = parseTimeToUnix(prev.time);
+          const dt = lastUnix - prevUnix;
+          if (dt !== 0) {
+            tUnix = lastUnix + Math.round(logical - (candles.length - 1)) * dt;
+          }
         } else if (logical < 0) {
           const first = candles[0];
           const second = candles[1];
-          const dt = (second.time as number) - (first.time as number);
-          t = (first.time as number) + Math.round(logical) * dt;
+          const firstUnix = parseTimeToUnix(first.time);
+          const secondUnix = parseTimeToUnix(second.time);
+          const dt = secondUnix - firstUnix;
+          if (dt !== 0) {
+            tUnix = firstUnix + Math.round(logical) * dt;
+          }
         }
       }
     }
-    return t;
+    return tUnix;
   };
 
   // Handle Drawings Canvas Clicks
@@ -945,7 +954,7 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
         if (state.type === 'point' && i !== state.pointIndex) return pt;
         
         let newTime = pt.time;
-        const origX = chartObj.current.timeScale().timeToCoordinate(pt.time as any);
+        const origX = getCoordinateFromTime(pt.time as any, chartObj.current, candles);
         if (origX !== null) {
           const t = getTimeFromCoordinate(origX + dx);
           if (t !== null) newTime = t;

@@ -444,17 +444,19 @@ export const renderAllDrawings = (
     ctx.lineWidth = currentWidth;
     ctx.fillStyle = currentColor;
 
-    const p1 = {
-      x: chart.timeScale().timeToCoordinate(drawingPoints[0].time as any),
-      y: mainSeries.priceToCoordinate(drawingPoints[0].price),
+    const getScreenPt = (idx: number) => {
+      if (idx >= drawingPoints.length) return { x: null, y: null };
+      return {
+        x: getCoordinateFromTime(drawingPoints[idx].time as any, chart, candles),
+        y: mainSeries.priceToCoordinate(drawingPoints[idx].price),
+      };
     };
+
+    const p1 = getScreenPt(0);
 
     if (p1.x !== null && p1.y !== null) {
       if (activeTool === 'trend' && drawingPoints.length === 2) {
-        const p2 = {
-          x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-          y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-        };
+        const p2 = getScreenPt(1);
         if (p2.x !== null && p2.y !== null) {
           ctx.beginPath();
           ctx.moveTo(p1.x, p1.y);
@@ -462,20 +464,14 @@ export const renderAllDrawings = (
           ctx.stroke();
         }
       } else if (activeTool === 'rectangle' && drawingPoints.length === 2) {
-        const p2 = {
-          x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-          y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-        };
+        const p2 = getScreenPt(1);
         if (p2.x !== null && p2.y !== null) {
           ctx.beginPath();
           ctx.rect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
           ctx.stroke();
         }
       } else if (activeTool === 'fib' && drawingPoints.length === 2) {
-        const p2 = {
-          x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-          y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-        };
+        const p2 = getScreenPt(1);
         if (p2.x !== null && p2.y !== null) {
           ctx.beginPath();
           ctx.moveTo(p1.x, p1.y);
@@ -483,10 +479,7 @@ export const renderAllDrawings = (
           ctx.stroke();
         }
       } else if (activeTool === 'ellipse' && drawingPoints.length === 2) {
-        const p2 = {
-          x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-          y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-        };
+        const p2 = getScreenPt(1);
         if (p2.x !== null && p2.y !== null) {
           const rx = Math.abs(p2.x - p1.x) / 2;
           const ry = Math.abs(p2.y - p1.y) / 2;
@@ -497,10 +490,7 @@ export const renderAllDrawings = (
           ctx.stroke();
         }
       } else if (activeTool === 'ray' && drawingPoints.length === 2) {
-        const p2 = {
-          x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-          y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-        };
+        const p2 = getScreenPt(1);
         if (p2.x !== null && p2.y !== null) {
           ctx.beginPath();
           ctx.moveTo(p1.x, p1.y);
@@ -510,10 +500,7 @@ export const renderAllDrawings = (
           ctx.stroke();
         }
       } else if (activeTool === 'arrow' && drawingPoints.length === 2) {
-        const p2 = {
-          x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-          y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-        };
+        const p2 = getScreenPt(1);
         if (p2.x !== null && p2.y !== null) {
           ctx.beginPath();
           ctx.moveTo(p1.x, p1.y);
@@ -528,10 +515,7 @@ export const renderAllDrawings = (
           ctx.fill();
         }
       } else if (activeTool === 'extendedLine' && drawingPoints.length === 2) {
-        const p2 = {
-          x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-          y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-        };
+        const p2 = getScreenPt(1);
         if (p2.x !== null && p2.y !== null) {
           ctx.beginPath();
           const dx = p2.x - p1.x;
@@ -541,10 +525,7 @@ export const renderAllDrawings = (
           ctx.stroke();
         }
       } else if (activeTool === 'infoLine' && drawingPoints.length === 2) {
-        const p2 = {
-          x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-          y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-        };
+        const p2 = getScreenPt(1);
         if (p2.x !== null && p2.y !== null) {
           ctx.beginPath();
           ctx.moveTo(p1.x, p1.y);
@@ -552,10 +533,7 @@ export const renderAllDrawings = (
           ctx.stroke();
         }
       } else if (activeTool === 'trendAngle' && drawingPoints.length === 2) {
-        const p2 = {
-          x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-          y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-        };
+        const p2 = getScreenPt(1);
         if (p2.x !== null && p2.y !== null) {
           ctx.beginPath();
           ctx.moveTo(p1.x, p1.y);
@@ -578,30 +556,21 @@ export const renderAllDrawings = (
         ctx.beginPath();
         ctx.moveTo(p1.x as number, p1.y as number);
         for (let i = 1; i < drawingPoints.length; i++) {
-          const pNext = {
-            x: chart.timeScale().timeToCoordinate(drawingPoints[i].time as any),
-            y: mainSeries.priceToCoordinate(drawingPoints[i].price),
-          };
+          const pNext = getScreenPt(i);
           if (pNext.x !== null && pNext.y !== null) {
             ctx.lineTo(pNext.x as number, pNext.y as number);
           }
         }
         ctx.stroke();
       } else if (activeTool === 'curve' && (drawingPoints.length === 2 || drawingPoints.length === 3)) {
-        const p2 = {
-          x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-          y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-        };
+        const p2 = getScreenPt(1);
         if (drawingPoints.length === 2 && p2.x !== null && p2.y !== null) {
           ctx.beginPath();
           ctx.moveTo(p1.x as number, p1.y as number);
           ctx.lineTo(p2.x as number, p2.y as number);
           ctx.stroke();
         } else if (drawingPoints.length === 3) {
-          const p3 = {
-            x: chart.timeScale().timeToCoordinate(drawingPoints[2].time as any),
-            y: mainSeries.priceToCoordinate(drawingPoints[2].price),
-          };
+          const p3 = getScreenPt(2);
           if (p2.x !== null && p2.y !== null && p3.x !== null && p3.y !== null) {
             ctx.beginPath();
             ctx.moveTo(p1.x as number, p1.y as number);
@@ -610,10 +579,7 @@ export const renderAllDrawings = (
           }
         }
       } else if (activeTool === 'parallelChannel' && (drawingPoints.length === 2 || drawingPoints.length === 3)) {
-        const p2 = {
-          x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-          y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-        };
+        const p2 = getScreenPt(1);
         if (p2.x !== null && p2.y !== null) {
           ctx.beginPath();
           const dx = p2.x - p1.x;
@@ -623,10 +589,7 @@ export const renderAllDrawings = (
           ctx.stroke();
 
           if (drawingPoints.length === 3) {
-            const p3 = {
-              x: chart.timeScale().timeToCoordinate(drawingPoints[2].time as any),
-              y: mainSeries.priceToCoordinate(drawingPoints[2].price),
-            };
+            const p3 = getScreenPt(2);
             if (p3.x !== null && p3.y !== null) {
               const offsetX = p3.x - p1.x;
               const offsetY = p3.y - p1.y;
@@ -646,10 +609,7 @@ export const renderAllDrawings = (
           }
         }
       } else if (activeTool === 'triangle' && (drawingPoints.length === 2 || drawingPoints.length === 3)) {
-        const p2 = {
-          x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-          y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-        };
+        const p2 = getScreenPt(1);
         if (p2.x !== null && p2.y !== null) {
           if (drawingPoints.length === 2) {
             ctx.beginPath();
@@ -657,10 +617,7 @@ export const renderAllDrawings = (
             ctx.lineTo(p2.x, p2.y);
             ctx.stroke();
           } else if (drawingPoints.length === 3) {
-            const p3 = {
-              x: chart.timeScale().timeToCoordinate(drawingPoints[2].time as any),
-              y: mainSeries.priceToCoordinate(drawingPoints[2].price),
-            };
+            const p3 = getScreenPt(2);
             if (p3.x !== null && p3.y !== null) {
               ctx.beginPath();
               ctx.moveTo(p1.x, p1.y);
@@ -674,10 +631,7 @@ export const renderAllDrawings = (
           }
         }
       } else if (activeTool === 'ruler' && drawingPoints.length === 2) {
-        const p2 = {
-          x: chart.timeScale().timeToCoordinate(drawingPoints[1].time as any),
-          y: mainSeries.priceToCoordinate(drawingPoints[1].price),
-        };
+        const p2 = getScreenPt(1);
         if (p2.x !== null && p2.y !== null) {
           ctx.beginPath();
           ctx.setLineDash([4, 4]);
@@ -700,10 +654,7 @@ export const renderAllDrawings = (
         ctx.beginPath();
         ctx.moveTo(p1.x as number, p1.y as number);
         for (let i = 1; i < drawingPoints.length; i++) {
-          const pt = {
-            x: chart.timeScale().timeToCoordinate(drawingPoints[i].time as any),
-            y: mainSeries.priceToCoordinate(drawingPoints[i].price),
-          };
+          const pt = getScreenPt(i);
           if (pt.x !== null && pt.y !== null) {
             ctx.lineTo(pt.x as number, pt.y as number);
           }

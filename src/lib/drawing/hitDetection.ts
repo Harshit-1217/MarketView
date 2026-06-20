@@ -1,5 +1,30 @@
 import { Drawing } from '@/lib/store/drawingStore';
 
+export const parseTimeToUnix = (time: any): number => {
+  if (time === null || time === undefined) return 0;
+  if (typeof time === 'number') {
+    if (isNaN(time)) return 0;
+    return time > 1e11 ? Math.floor(time / 1000) : time;
+  }
+  if (typeof time === 'string') {
+    if (!isNaN(Number(time))) {
+      const num = Number(time);
+      return num > 1e11 ? Math.floor(num / 1000) : num;
+    }
+    const date = new Date(time);
+    const ts = Math.floor(date.getTime() / 1000);
+    return isNaN(ts) ? 0 : ts;
+  }
+  if (typeof time === 'object') {
+    if ('year' in time && 'month' in time && 'day' in time) {
+      const date = new Date(Date.UTC(time.year, time.month - 1, time.day));
+      const ts = Math.floor(date.getTime() / 1000);
+      return isNaN(ts) ? 0 : ts;
+    }
+  }
+  return 0;
+};
+
 export const distanceToSegment = (px: number, py: number, x1: number, y1: number, x2: number, y2: number) => {
   const l2 = (x1 - x2) ** 2 + (y1 - y2) ** 2;
   if (l2 === 0) return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2);
@@ -8,7 +33,7 @@ export const distanceToSegment = (px: number, py: number, x1: number, y1: number
   return Math.sqrt((px - (x1 + t * (x2 - x1))) ** 2 + (py - (y1 + t * (y2 - y1))) ** 2);
 };
 
-export const getCoordinateFromTime = (time: number, chart: any, candles: any[]): number | null => {
+export const getCoordinateFromTime = (time: any, chart: any, candles: any[]): number | null => {
   let x = chart.timeScale().timeToCoordinate(time);
   if (x === null && candles && candles.length >= 2) {
     const last = candles[candles.length - 1];
@@ -16,14 +41,24 @@ export const getCoordinateFromTime = (time: number, chart: any, candles: any[]):
     const first = candles[0];
     const second = candles[1];
     
-    if (time > last.time) {
-      const dt = (last.time as number) - (prev.time as number);
-      const logicalOffset = (time - (last.time as number)) / dt;
-      x = chart.timeScale().logicalToCoordinate((candles.length - 1) + logicalOffset);
-    } else if (time < first.time) {
-      const dt = (second.time as number) - (first.time as number);
-      const logicalOffset = ((first.time as number) - time) / dt;
-      x = chart.timeScale().logicalToCoordinate(0 - logicalOffset);
+    const tUnix = parseTimeToUnix(time);
+    const lastUnix = parseTimeToUnix(last.time);
+    const prevUnix = parseTimeToUnix(prev.time);
+    const firstUnix = parseTimeToUnix(first.time);
+    const secondUnix = parseTimeToUnix(second.time);
+    
+    if (tUnix > lastUnix) {
+      const dt = lastUnix - prevUnix;
+      if (dt !== 0) {
+        const logicalOffset = (tUnix - lastUnix) / dt;
+        x = chart.timeScale().logicalToCoordinate((candles.length - 1) + logicalOffset);
+      }
+    } else if (tUnix < firstUnix) {
+      const dt = secondUnix - firstUnix;
+      if (dt !== 0) {
+        const logicalOffset = (firstUnix - tUnix) / dt;
+        x = chart.timeScale().logicalToCoordinate(0 - logicalOffset);
+      }
     }
   }
   return x;
