@@ -116,9 +116,10 @@ export const renderAllDrawings = (
         ctx.fillStyle = drawing.properties.fillColor || 'rgba(41, 98, 255, 0.15)';
         ctx.fill();
       }
-    } else if (['fib', 'fibExtension', 'pitchfork'].includes(drawing.type) && points.length >= 2) {
+    } else if (drawing.type === 'fib' && points.length >= 2) {
       const [p1, p2] = points;
       if (p1.x !== null && p1.y !== null && p2.x !== null && p2.y !== null) {
+        // Draw the baseline
         ctx.beginPath();
         ctx.strokeStyle = drawing.properties.color || '#787b86';
         ctx.lineWidth = drawing.properties.width || 1;
@@ -130,13 +131,14 @@ export const renderAllDrawings = (
         const colors = ['#f23645', '#ff9800', '#4caf50', '#00bcd4', '#2196f3', '#9c27b0', '#787b86'];
         const diff = p2.y - p1.y;
         const priceDiff = drawing.points[1].price - drawing.points[0].price;
+        const x1 = p1.x as number;
+        const y1 = p1.y as number;
+        const x2 = p2.x as number;
 
         levels.forEach((lvl, idx) => {
-          const x1 = p1.x as number;
-          const y1 = p1.y as number;
-          const x2 = p2.x as number;
           const y = y1 + diff * lvl;
           ctx.strokeStyle = colors[idx];
+          ctx.lineWidth = 1;
           ctx.beginPath();
           if (drawing.properties.extendLine) {
             ctx.moveTo(x1 - 2000, y);
@@ -150,27 +152,75 @@ export const renderAllDrawings = (
           ctx.fillStyle = colors[idx];
           ctx.font = '9px Arial';
           const priceVal = (drawing.points[0].price + priceDiff * lvl).toFixed(2);
-          let textX = Math.min(x1, x2) + 5;
-          if (drawing.properties.pricePosition === 'left') {
-            textX = Math.min(x1, x2) + 5;
-            if (drawing.properties.extendLine) textX = 5;
-          } else if (drawing.properties.pricePosition === 'center') {
-            const textWidth = ctx.measureText(`Fib ${lvl} (${priceVal})`).width;
-            textX = (x1 + x2) / 2 - textWidth / 2;
-            if (drawing.properties.extendLine) textX = canvas.width / 2 - textWidth / 2;
-          } else if (drawing.properties.pricePosition === 'right') {
-            const textWidth = ctx.measureText(`Fib ${lvl} (${priceVal})`).width;
-            textX = Math.max(x1, x2) - textWidth - 5;
-            if (drawing.properties.extendLine) textX = canvas.width - textWidth - 5;
-          } else {
-            if (drawing.properties.extendLine) {
-              textX = Math.max(x1, x2) + 5;
-            }
-          }
-          if (drawing.properties.showPrice !== false) {
-            ctx.fillText(`Fib ${lvl} (${priceVal})`, textX, y - 4);
-          }
+          const label = `${lvl} (${priceVal})`;
+          const textX = drawing.properties.extendLine ? Math.max(x1, x2) + 5 : Math.min(x1, x2) + 5;
+          if (drawing.properties.showPrice !== false) ctx.fillText(label, textX, y - 3);
         });
+      }
+    } else if (drawing.type === 'fibExtension' && points.length >= 3) {
+      const [p1, p2, p3] = points;
+      if (p1.x !== null && p1.y !== null && p2.x !== null && p2.y !== null && p3.x !== null && p3.y !== null) {
+        // Draw the diagonal baselines (A to B, B to C)
+        ctx.beginPath();
+        ctx.strokeStyle = drawing.properties.color || '#787b86';
+        ctx.lineWidth = drawing.properties.width || 1;
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.lineTo(p3.x, p3.y);
+        ctx.stroke();
+
+        const levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0, 1.272, 1.414, 1.618, 2.0, 2.618];
+        const colors = ['#f23645', '#ff9800', '#4caf50', '#00bcd4', '#2196f3', '#9c27b0', '#787b86', '#e91e63', '#9c27b0', '#ff5722', '#795548', '#607d8b'];
+        const diff = p2.y - p1.y;
+        const priceDiff = drawing.points[1].price - drawing.points[0].price;
+        const x3 = p3.x as number;
+        const y3 = p3.y as number;
+
+        levels.forEach((lvl, idx) => {
+          const y = y3 + diff * lvl;
+          ctx.strokeStyle = colors[idx % colors.length];
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(x3, y);
+          ctx.lineTo(canvas.width, y);
+          ctx.stroke();
+
+          ctx.fillStyle = colors[idx % colors.length];
+          ctx.font = '9px Arial';
+          const priceVal = (drawing.points[2].price + priceDiff * lvl).toFixed(2);
+          const label = `${lvl} (${priceVal})`;
+          if (drawing.properties.showPrice !== false) ctx.fillText(label, x3 + 5, y - 3);
+        });
+      }
+    } else if (drawing.type === 'pitchfork' && points.length >= 3) {
+      const [p1, p2, p3] = points;
+      if (p1.x !== null && p1.y !== null && p2.x !== null && p2.y !== null && p3.x !== null && p3.y !== null) {
+        // Draw baseline from p2 to p3
+        ctx.beginPath();
+        ctx.strokeStyle = drawing.properties.color || '#787b86';
+        ctx.lineWidth = drawing.properties.width || 1;
+        ctx.moveTo(p2.x, p2.y);
+        ctx.lineTo(p3.x, p3.y);
+        ctx.stroke();
+
+        // Draw median line from p1 through midpoint of p2-p3
+        const midX = (p2.x + p3.x) / 2;
+        const midY = (p2.y + p3.y) / 2;
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p1.x + (midX - p1.x) * 10, p1.y + (midY - p1.y) * 10);
+        ctx.stroke();
+
+        // Optional: draw parallel lines from p2 and p3
+        ctx.beginPath();
+        ctx.moveTo(p2.x, p2.y);
+        ctx.lineTo(p2.x + (midX - p1.x) * 10, p2.y + (midY - p1.y) * 10);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(p3.x, p3.y);
+        ctx.lineTo(p3.x + (midX - p1.x) * 10, p3.y + (midY - p1.y) * 10);
+        ctx.stroke();
       }
     } else if (drawing.type === 'text' && points.length >= 1) {
       const [p1] = points;
@@ -513,6 +563,48 @@ export const renderAllDrawings = (
           ctx.moveTo(p1.x, p1.y);
           ctx.lineTo(p2.x, p2.y);
           ctx.stroke();
+        }
+      } else if ((activeTool === 'fibExtension' || activeTool === 'pitchfork') && (drawingPoints.length === 2 || drawingPoints.length === 3)) {
+        const p2 = getScreenPt(1);
+        if (p2.x !== null && p2.y !== null) {
+          ctx.beginPath();
+          ctx.moveTo(p1.x, p1.y);
+          ctx.lineTo(p2.x, p2.y);
+          ctx.stroke();
+
+          if (drawingPoints.length === 3) {
+            const p3 = getScreenPt(2);
+            if (p3.x !== null && p3.y !== null) {
+              if (activeTool === 'fibExtension') {
+                ctx.lineTo(p3.x, p3.y);
+                ctx.stroke();
+                const previewLevels = [0, 0.5, 1.0, 1.618, 2.618];
+                const dy = p2.y - p1.y;
+                previewLevels.forEach((lvl) => {
+                  const y = p3.y! + dy * lvl;
+                  ctx.globalAlpha = 0.4;
+                  ctx.beginPath();
+                  ctx.moveTo(p3.x!, y);
+                  ctx.lineTo(canvas.width, y);
+                  ctx.stroke();
+                  ctx.globalAlpha = 1;
+                });
+              } else if (activeTool === 'pitchfork') {
+                ctx.beginPath();
+                ctx.moveTo(p2.x, p2.y);
+                ctx.lineTo(p3.x, p3.y);
+                ctx.stroke();
+                const midX = (p2.x + p3.x) / 2;
+                const midY = (p2.y + p3.y) / 2;
+                ctx.beginPath();
+                ctx.setLineDash([4, 4]);
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p1.x + (midX - p1.x) * 10, p1.y + (midY - p1.y) * 10);
+                ctx.stroke();
+                ctx.setLineDash([]);
+              }
+            }
+          }
         }
       } else if (activeTool === 'ellipse' && drawingPoints.length === 2) {
         const p2 = getScreenPt(1);

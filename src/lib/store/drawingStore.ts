@@ -21,7 +21,7 @@ export interface DrawingProperties {
 export interface Drawing {
   id: string;
   symbol: string;
-  type: 'trend' | 'horizontal' | 'vertical' | 'rectangle' | 'fib' | 'text' | 'ray' | 'arrow' | 'brush' | 'ellipse' | 'extendedLine' | 'parallelChannel' | 'triangle' | 'ruler' | 'infoLine' | 'trendAngle' | 'horizontalRay' | 'crossLine' | 'path' | 'curve';
+  type: 'trend' | 'horizontal' | 'vertical' | 'rectangle' | 'fib' | 'fibExtension' | 'pitchfork' | 'text' | 'ray' | 'arrow' | 'brush' | 'ellipse' | 'extendedLine' | 'parallelChannel' | 'triangle' | 'ruler' | 'infoLine' | 'trendAngle' | 'horizontalRay' | 'crossLine' | 'path' | 'curve';
   points: DrawingPoint[];
   properties: DrawingProperties;
 }
@@ -31,6 +31,7 @@ interface DrawingState {
   past: Drawing[][];
   future: Drawing[][];
   activeTool: DrawingTool;
+  previousCursorTool: DrawingTool;
   loading: boolean;
   currentColor: string;
   currentWidth: number;
@@ -63,6 +64,7 @@ export const useDrawingStore = create<DrawingState>((set, get) => ({
   past: [],
   future: [],
   activeTool: 'crosshair',
+  previousCursorTool: 'crosshair',
   loading: false,
   currentColor: '#2962ff',
   currentWidth: 2,
@@ -72,7 +74,15 @@ export const useDrawingStore = create<DrawingState>((set, get) => ({
   areDrawingsLocked: false,
   areDrawingsHidden: false,
 
-  setActiveTool: (activeTool) => set({ activeTool }),
+  setActiveTool: (activeTool) => {
+    set((state) => {
+      const isCursorTool = ['crosshair', 'dot', 'arrowCursor', 'eraser'].includes(activeTool as string);
+      return {
+        activeTool,
+        previousCursorTool: isCursorTool ? activeTool : state.previousCursorTool
+      };
+    });
+  },
   setCurrentColor: (currentColor) => set({ currentColor }),
   setCurrentWidth: (currentWidth) => set({ currentWidth }),
   
@@ -82,32 +92,40 @@ export const useDrawingStore = create<DrawingState>((set, get) => ({
   setAreDrawingsHidden: (areDrawingsHidden) => set({ areDrawingsHidden }),
 
   fetchDrawings: async (symbol) => {
+    const sym = symbol.toUpperCase();
     set({ loading: true });
     const supabase = createClient();
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        set({ drawings: [], loading: false });
+        set({ loading: false });
         return;
       }
 
       const { data, error } = await supabase
         .from('drawings')
         .select('*')
-        .eq('symbol', symbol.toUpperCase())
+        .eq('symbol', sym)
         .eq('user_id', session.user.id);
 
       if (error) throw error;
-      
-      set({ 
-        drawings: (data || []).map(d => ({
-          id: d.id,
-          symbol: d.symbol,
-          type: d.type as any,
-          points: d.points as DrawingPoint[],
-          properties: d.properties as DrawingProperties
-        }))
-      });
+
+      const fetched = (data || []).map(d => ({
+        id: d.id,
+        symbol: d.symbol,
+        type: d.type as any,
+        points: d.points as DrawingPoint[],
+        properties: d.properties as DrawingProperties
+      }));
+
+      // Merge: keep drawings for OTHER symbols, replace only this symbol's drawings.
+      // This prevents one ChartInstance's fetch from wiping another instance's drawings.
+      set(state => ({
+        drawings: [
+          ...state.drawings.filter(d => d.symbol !== sym),
+          ...fetched,
+        ],
+      }));
     } catch (e) {
       console.error('Error fetching drawings:', e);
     } finally {

@@ -52,7 +52,7 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
   // Store bindings
   const { activeChartId, setActiveChartId, syncCrosshair, crosshairPosition, setCrosshairPosition } = useChartStore();
   const { indicators } = useIndicatorStore();
-  const { drawings, activeTool, setActiveTool, currentColor, currentWidth, addDrawing, updateDrawing, deleteDrawing, fetchDrawings, isMagnetModeEnabled, isDrawingModeLocked, areDrawingsLocked, areDrawingsHidden, setCurrentColor, setCurrentWidth } = useDrawingStore();
+  const { drawings, activeTool, previousCursorTool, setActiveTool, currentColor, currentWidth, addDrawing, updateDrawing, deleteDrawing, fetchDrawings, isMagnetModeEnabled, isDrawingModeLocked, areDrawingsLocked, areDrawingsHidden, setCurrentColor, setCurrentWidth } = useDrawingStore();
   const { symbols, addSymbol, removeSymbol } = useWatchlistStore();
 
   const isStarred = symbols.includes(config.symbol);
@@ -72,6 +72,9 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
   // Active chart objects
   const chartObj = useRef<any>(null);
   const mainSeriesObj = useRef<any>(null);
+  // Tracks when chart has been created so the resize effect can re-run
+  const [chartReady, setChartReady] = useState(false);
+  const containerSizeRef = useRef(containerSize);
 
   // Dynamic oscillator sub-panel system
   const oscPanelRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -99,6 +102,15 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
   } | null>(null);
   const isCrosshairActiveRef = useRef(false);
   const isCanvasInteractiveRef = useRef(false);
+  const isMouseDownRef = useRef(false);
+
+  useEffect(() => {
+    const handleMouseUp = () => {
+      isMouseDownRef.current = false;
+    };
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => window.removeEventListener('mouseup', handleMouseUp);
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = () => setContextMenu(null);
@@ -117,6 +129,8 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
   const currentColorRef = useRef(currentColor);
   const currentWidthRef = useRef(currentWidth);
   const areDrawingsHiddenRef = useRef(areDrawingsHidden);
+  // Always-fresh candles ref — prevents the drawAllDrawings closure from going stale
+  const candlesRef = useRef(candles);
 
   useEffect(() => {
     activeDrawingsRef.current = activeDrawings;
@@ -128,12 +142,25 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
     areDrawingsHiddenRef.current = areDrawingsHidden;
   }, [activeDrawings, drawingPoints, isDrawing, activeTool, currentColor, currentWidth, areDrawingsHidden]);
 
+  // Keep candlesRef in sync — also triggers redraw so drawings reposition when data loads
+  useEffect(() => {
+    candlesRef.current = candles;
+    if (drawDrawingsRef.current) drawDrawingsRef.current();
+  }, [candles]);
+
   useEffect(() => {
     if (canvasRef.current) {
-      const isDrawingTool = activeTool && !['crosshair', 'dot', 'arrowCursor'].includes(activeTool as string);
-      if (isDrawingTool && !areDrawingsLocked) {
-        canvasRef.current.style.pointerEvents = 'auto';
-      } else if (!isCanvasInteractiveRef.current) {
+      if (!areDrawingsLocked) {
+        // ALWAYS allow hit detection events to potentially trigger interactions
+        // unless drawings are locked. The handleOuterMouseMove will set pointerEvents to auto on hit.
+        if (isCanvasInteractiveRef.current) {
+          canvasRef.current.style.pointerEvents = 'auto';
+        } else {
+          // If we're actively drawing a new shape, we MUST capture events
+          const isDrawingTool = activeTool && !['crosshair', 'dot', 'arrowCursor', 'eraser'].includes(activeTool as string);
+          canvasRef.current.style.pointerEvents = isDrawingTool ? 'auto' : 'none';
+        }
+      } else {
         canvasRef.current.style.pointerEvents = 'none';
       }
     }
@@ -150,18 +177,20 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
-        console.log('[ChartInstance] ResizeObserver contentRect:', width, height);
         if (width > 0 && height > 0) {
-          setContainerSize({ w: Math.floor(width), h: Math.floor(height) });
+          const newSize = { w: Math.floor(width), h: Math.floor(height) };
+          containerSizeRef.current = newSize;
+          setContainerSize(newSize);
         }
       }
     });
     ro.observe(outerRef.current);
     // Initial measurement
     const rect = outerRef.current.getBoundingClientRect();
-    console.log('[ChartInstance] Initial getBoundingClientRect:', rect.width, rect.height);
     if (rect.width > 0 && rect.height > 0) {
-      setContainerSize({ w: Math.floor(rect.width), h: Math.floor(rect.height) });
+      const newSize = { w: Math.floor(rect.width), h: Math.floor(rect.height) };
+      containerSizeRef.current = newSize;
+      setContainerSize(newSize);
     }
     return () => ro.disconnect();
   }, []);
@@ -221,11 +250,9 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
   }, [containerSize.w, containerSize.h, initialSizeSet]);
 
   useEffect(() => {
-    console.log('[ChartInstance] Chart effect: loading=', loading, 'candles=', candles.length, 'containerSize=', containerSize, 'mainChartRef=', !!mainChartRef.current);
     if (loading || candles.length === 0) return;
     if (!initialSizeSet) return;
     if (!mainChartRef.current) return;
-    console.log('[ChartInstance] Creating chart with dimensions:', containerSize.w, 'x', containerSize.h);
 
     // Dynamically load Lightweight Charts library
     let destroyed = false;
@@ -581,7 +608,7 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
           activeToolRef.current,
           currentColorRef.current,
           currentWidthRef.current,
-          candles
+          candlesRef.current
         );
       };
 
@@ -597,6 +624,30 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
         canvasRef.current.height = mainHeight;
       }
       drawAllDrawings();
+
+      // ── Always apply the latest container size right after async chart creation ──
+      // containerSize in this closure is the value at effect-run time; the real
+      // current dimensions live in containerSizeRef which is kept in sync by the
+      // ResizeObserver.  We always resize here so the chart never renders at stale
+      // dimensions regardless of async timing.
+      const latestSize = containerSizeRef.current;
+      const numOscLatest = oscIndicators.length;
+      const mainHeightPctLatest = numOscLatest === 0 ? 1.0 : Math.max(0.45, 0.75 - numOscLatest * 0.08);
+      const mainHeightLatest = Math.floor(latestSize.h * mainHeightPctLatest);
+      const oscTotalHeightLatest = latestSize.h - mainHeightLatest;
+      const oscPanelHeightLatest = numOscLatest > 0 ? Math.floor(oscTotalHeightLatest / numOscLatest) : 0;
+      try { chart.resize(latestSize.w, mainHeightLatest); } catch (e) { /* ignore */ }
+      oscChartObjs.current.forEach((oc) => {
+        try { oc.resize(latestSize.w, oscPanelHeightLatest); } catch (e) { /* ignore */ }
+      });
+      if (canvasRef.current) {
+        canvasRef.current.width = latestSize.w;
+        canvasRef.current.height = mainHeightLatest;
+      }
+      drawAllDrawings();
+
+      // Signal chart is ready so the resize effect can handle subsequent size changes.
+      setChartReady(true);
 
       // Hook Polling Manager
       let unsubPolling: (() => void) | undefined;
@@ -649,20 +700,22 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
     // Instead we track `destroyed` flag and clean up from within the .then()
     return () => {
       destroyed = true;
-      // unsubPolling is handled inside the then() block cleanup.
-      // If we need to unsubscribe immediately before then() finishes,
-      // it's tricky, but usually destroyed flag covers it.
       try { if (chartObj.current) chartObj.current.remove(); } catch (e) { /* ignore */ }
       oscChartObjs.current.forEach((c) => { try { c.remove(); } catch (e) { /* ignore */ } });
       chartObj.current = null;
       oscChartObjs.current.clear();
+      // Reset ready flag so the resize effect re-triggers after next chart creation
+      setChartReady(false);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, candles.length, config.chartType, config.symbol, config.timeframe, initialSizeSet, indicators.length, oscIndicators.length, JSON.stringify(indicators)]);
 
   // Resize existing chart when container size changes (without full rebuild)
+  // Also re-runs when chartReady flips to true, so the initial size is applied
+  // even if the ResizeObserver already fired before the async chart was ready.
   useEffect(() => {
     if (containerSize.w === 0 || containerSize.h === 0) return;
+    if (!chartObj.current) return; // chart not yet created — will be resized inside .then()
     
     const numOsc = oscIndicators.length;
     const mainHeightPct = numOsc === 0 ? 1.0 : Math.max(0.45, 0.75 - numOsc * 0.08);
@@ -670,9 +723,7 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
     const oscTotalHeight = containerSize.h - mainHeight;
     const oscPanelHeight = numOsc > 0 ? Math.floor(oscTotalHeight / numOsc) : 0;
 
-    if (chartObj.current) {
-      try { chartObj.current.resize(containerSize.w, mainHeight); } catch (e) { /* ignore */ }
-    }
+    try { chartObj.current.resize(containerSize.w, mainHeight); } catch (e) { /* ignore */ }
     
     oscChartObjs.current.forEach((chart) => {
       try { chart.resize(containerSize.w, oscPanelHeight); } catch (e) { /* ignore */ }
@@ -682,7 +733,9 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
       canvasRef.current.width = containerSize.w;
       canvasRef.current.height = mainHeight;
     }
-  }, [containerSize.w, containerSize.h, oscIndicators.length]);
+
+    if (drawDrawingsRef.current) drawDrawingsRef.current();
+  }, [containerSize.w, containerSize.h, oscIndicators.length, chartReady]);
 
   // Update crosshair visibility based on active tool
   useEffect(() => {
@@ -708,42 +761,46 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
       activeDrawingsRef.current, 
       chartObj.current, 
       mainSeriesObj.current,
-      candles
+      candlesRef.current
     );
-  }, [candles]);
+  }, []);
 
   const findClosestDrawingPointCb = useCallback((x: number, y: number) => {
     if (!chartObj.current || !mainSeriesObj.current) return null;
+    const canvas = canvasRef.current;
     return findClosestDrawingPoint(
       x,
       y,
       activeDrawingsRef.current,
       chartObj.current,
       mainSeriesObj.current,
-      candles
+      candlesRef.current,
+      canvas?.width,
+      canvas?.height
     );
-  }, [candles]);
+  }, []);
 
   const getTimeFromCoordinate = (x: number): number | null => {
     if (!chartObj.current) return null;
     const timeScale = chartObj.current.timeScale();
     let t = timeScale.coordinateToTime(x);
     let tUnix = t !== null ? parseTimeToUnix(t) : null;
-    if (tUnix === null && candles.length >= 2) {
+    const c = candlesRef.current;
+    if (tUnix === null && c.length >= 2) {
       const logical = timeScale.coordinateToLogical(x);
       if (logical !== null) {
-        if (logical > candles.length - 1) {
-          const last = candles[candles.length - 1];
-          const prev = candles[candles.length - 2];
+        if (logical > c.length - 1) {
+          const last = c[c.length - 1];
+          const prev = c[c.length - 2];
           const lastUnix = parseTimeToUnix(last.time);
           const prevUnix = parseTimeToUnix(prev.time);
           const dt = lastUnix - prevUnix;
           if (dt !== 0) {
-            tUnix = lastUnix + Math.round(logical - (candles.length - 1)) * dt;
+            tUnix = lastUnix + Math.round(logical - (c.length - 1)) * dt;
           }
         } else if (logical < 0) {
-          const first = candles[0];
-          const second = candles[1];
+          const first = c[0];
+          const second = c[1];
           const firstUnix = parseTimeToUnix(first.time);
           const secondUnix = parseTimeToUnix(second.time);
           const dt = secondUnix - firstUnix;
@@ -779,15 +836,37 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
 
     const point = { time, price };
 
-    if (!activeTool || activeTool === 'crosshair' || activeTool === 'arrowCursor' || activeTool === 'eraser') {
-      const closestPoint = findClosestDrawingPointCb(x, y);
-      if (closestPoint && activeTool !== 'eraser') {
-        const d = activeDrawingsRef.current.find(d => d.id === closestPoint.id);
+    // 1. Try to select or drag an existing drawing FIRST, regardless of active tool
+    const closestPoint = findClosestDrawingPointCb(x, y);
+    if (closestPoint && activeTool !== 'eraser') {
+      const d = activeDrawingsRef.current.find(d => d.id === closestPoint.id);
+      if (d) {
+        dragStateRef.current = {
+          id: d.id,
+          type: 'point',
+          pointIndex: closestPoint.pointIndex,
+          startX: x,
+          startY: y,
+          originalPoints: [...d.points],
+          currentPoints: [...d.points]
+        };
+        setSelectedDrawing({ id: d.id, x: e.clientX, y: e.clientY });
+        setIsDraggingUI(true);
+      }
+      return;
+    }
+
+    const closestId = findClosestDrawing(x, y);
+
+    if (closestId) {
+      if (activeTool === 'eraser') {
+        deleteDrawing(closestId);
+      } else {
+        const d = activeDrawingsRef.current.find(d => d.id === closestId);
         if (d) {
           dragStateRef.current = {
             id: d.id,
-            type: 'point',
-            pointIndex: closestPoint.pointIndex,
+            type: 'body',
             startX: x,
             startY: y,
             originalPoints: [...d.points],
@@ -796,39 +875,16 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
           setSelectedDrawing({ id: d.id, x: e.clientX, y: e.clientY });
           setIsDraggingUI(true);
         }
-        return;
-      }
-
-      const closestId = findClosestDrawing(x, y);
-
-      if (closestId) {
-        if (activeTool === 'eraser') {
-          deleteDrawing(closestId);
-        } else {
-          const d = activeDrawingsRef.current.find(d => d.id === closestId);
-          if (d) {
-            dragStateRef.current = {
-              id: d.id,
-              type: 'body',
-              startX: x,
-              startY: y,
-              originalPoints: [...d.points],
-              currentPoints: [...d.points]
-            };
-            setIsDraggingUI(true);
-          }
-          setSelectedDrawing({ id: closestId, x: e.clientX, y: e.clientY });
-        }
-      } else {
-        if (activeTool !== 'eraser') {
-          setSelectedDrawing(null);
-          dragStateRef.current = null;
-        }
       }
       return; // Stop further processing
+    } else {
+      if (activeTool !== 'eraser') {
+        setSelectedDrawing(null);
+        dragStateRef.current = null;
+      }
     }
 
-    if (['trend', 'rectangle', 'fib', 'fibExtension', 'pitchfork', 'ellipse', 'ray', 'arrow', 'extendedLine', 'ruler', 'brush', 'infoLine', 'trendAngle'].includes(activeTool as string)) {
+    if (['trend', 'rectangle', 'fib', 'ellipse', 'ray', 'arrow', 'extendedLine', 'ruler', 'brush', 'infoLine', 'trendAngle'].includes(activeTool as string)) {
       if (!isDrawing) {
         setIsDrawing(true);
         setDrawingPoints(activeTool === 'brush' ? [point] : [point, point]);
@@ -848,7 +904,7 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
         });
         setIsDrawing(false);
         setDrawingPoints([]);
-        if (!isDrawingModeLocked) setActiveTool(null);
+        if (!isDrawingModeLocked) setActiveTool(previousCursorTool);
       }
     } else if (activeTool === 'path') {
       if (!isDrawing) {
@@ -862,9 +918,9 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
         symbol: config.symbol,
         type: 'horizontal',
         points: [point],
-        properties: { color: currentColor, width: currentWidth },
+        properties: { color: currentColor, width: currentWidth, showPrice: true, pricePosition: 'right' },
       });
-      if (!isDrawingModeLocked) setActiveTool(null);
+      if (!isDrawingModeLocked) setActiveTool(previousCursorTool);
     } else if (activeTool === 'vertical') {
       addDrawing({
         symbol: config.symbol,
@@ -872,26 +928,26 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
         points: [point],
         properties: { color: currentColor, width: currentWidth },
       });
-      if (!isDrawingModeLocked) setActiveTool(null);
+      if (!isDrawingModeLocked) setActiveTool(previousCursorTool);
     } else if (activeTool === 'horizontalRay') {
       addDrawing({
         symbol: config.symbol,
         type: 'horizontalRay',
         points: [point],
-        properties: { color: currentColor, width: currentWidth },
+        properties: { color: currentColor, width: currentWidth, showPrice: true, pricePosition: 'right' },
       });
-      if (!isDrawingModeLocked) setActiveTool(null);
+      if (!isDrawingModeLocked) setActiveTool(previousCursorTool);
     } else if (activeTool === 'crossLine') {
       addDrawing({
         symbol: config.symbol,
         type: 'crossLine',
         points: [point],
-        properties: { color: currentColor, width: currentWidth },
+        properties: { color: currentColor, width: currentWidth, showPrice: true, pricePosition: 'right' },
       });
-      if (!isDrawingModeLocked) setActiveTool(null);
+      if (!isDrawingModeLocked) setActiveTool(previousCursorTool);
     } else if (activeTool === 'text') {
       setTextModal({ open: true, x: e.clientX, y: e.clientY, time, price });
-      if (!isDrawingModeLocked) setActiveTool(null);
+      if (!isDrawingModeLocked) setActiveTool(previousCursorTool);
     }
   };
 
@@ -907,18 +963,24 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
 
     if (['trend', 'rectangle', 'fib', 'fibExtension', 'pitchfork', 'ellipse', 'ray', 'arrow', 'extendedLine', 'ruler', 'brush', 'infoLine', 'trendAngle'].includes(activeTool as string)) {
       if (drawingPoints.length >= 2) {
+        const isFibTool = ['fib', 'fibExtension', 'pitchfork'].includes(activeTool as string);
         addDrawing({
           symbol: config.symbol,
           type: activeTool as any,
           points: drawingPoints,
-          properties: { color: currentColor, width: currentWidth, fillColor: 'rgba(41, 98, 255, 0.12)' },
+          properties: {
+            color: currentColor,
+            width: currentWidth,
+            fillColor: 'rgba(41, 98, 255, 0.12)',
+            ...(isFibTool ? { showPrice: true, pricePosition: 'right' } : {}),
+          },
         }).then(newId => {
           if (newId) setSelectedDrawing({ id: newId, x: e.clientX, y: e.clientY });
         });
       }
       setIsDrawing(false);
       setDrawingPoints([]);
-      if (!isDrawingModeLocked) setActiveTool(null);
+      if (!isDrawingModeLocked) setActiveTool(previousCursorTool);
     }
   };
 
@@ -934,7 +996,7 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
       }
       setIsDrawing(false);
       setDrawingPoints([]);
-      if (!isDrawingModeLocked) setActiveTool(null);
+      if (!isDrawingModeLocked) setActiveTool(previousCursorTool);
     }
   };
 
@@ -952,7 +1014,43 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
 
       const newPoints = state.originalPoints.map((pt, i) => {
         if (state.type === 'point' && i !== state.pointIndex) return pt;
-        
+
+        const drawingType = activeDrawingsRef.current.find(d => d.id === state.id)?.type;
+
+        // Horizontal lines: only price (y) changes, time is fixed
+        if (drawingType === 'horizontal') {
+          let newPrice = pt.price;
+          const origY = mainSeriesObj.current.priceToCoordinate(pt.price);
+          if (origY !== null) {
+            const p = mainSeriesObj.current.coordinateToPrice(origY + dy);
+            if (p !== null) newPrice = p;
+          }
+          return { time: pt.time, price: newPrice };
+        }
+
+        // Horizontal ray: only price (y) changes, time is fixed
+        if (drawingType === 'horizontalRay') {
+          let newPrice = pt.price;
+          const origY = mainSeriesObj.current.priceToCoordinate(pt.price);
+          if (origY !== null) {
+            const p = mainSeriesObj.current.coordinateToPrice(origY + dy);
+            if (p !== null) newPrice = p;
+          }
+          return { time: pt.time, price: newPrice };
+        }
+
+        // Vertical lines: only time (x) changes, price is fixed
+        if (drawingType === 'vertical') {
+          let newTime = pt.time;
+          const origX = getCoordinateFromTime(pt.time as any, chartObj.current, candles);
+          if (origX !== null) {
+            const t = getTimeFromCoordinate(origX + dx);
+            if (t !== null) newTime = t;
+          }
+          return { time: newTime, price: pt.price };
+        }
+
+        // All other tools: move both axes
         let newTime = pt.time;
         const origX = getCoordinateFromTime(pt.time as any, chartObj.current, candles);
         if (origX !== null) {
@@ -1004,7 +1102,7 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
       }
     }
 
-    if (['parallelChannel', 'triangle', 'curve'].includes(activeTool as string)) {
+    if (['parallelChannel', 'triangle', 'curve', 'fibExtension', 'pitchfork'].includes(activeTool as string)) {
       if (drawingPoints.length === 2) {
         setDrawingPoints([drawingPoints[0], { time, price }]);
       } else if (drawingPoints.length === 3) {
@@ -1040,10 +1138,10 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
   };
 
   const handleOuterMouseMove = (e: React.MouseEvent) => {
-    if (activeToolRef.current && activeToolRef.current !== 'crosshair') return; // Canvas handles it
     if (!canvasRef.current || !chartObj.current || !mainSeriesObj.current) return;
     if (dragStateRef.current) return; // Keep current pointer events during drag
     if (areDrawingsLocked) return;
+    if (isMouseDownRef.current) return; // Do not interrupt panning/dragging by changing pointer-events
 
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -1059,8 +1157,9 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
       canvasRef.current.style.cursor = ptHit ? 'move' : 'pointer';
     } else if (!hit && isCanvasInteractiveRef.current) {
       isCanvasInteractiveRef.current = false;
-      canvasRef.current.style.pointerEvents = 'none';
-      canvasRef.current.style.cursor = 'crosshair';
+      const isDrawingTool = activeTool && !['crosshair', 'dot', 'arrowCursor', 'eraser'].includes(activeTool as string);
+      canvasRef.current.style.pointerEvents = isDrawingTool ? 'auto' : 'none';
+      canvasRef.current.style.cursor = isDrawingTool ? 'crosshair' : 'crosshair';
     } else if (hit && isCanvasInteractiveRef.current) {
       canvasRef.current.style.cursor = ptHit ? 'move' : 'pointer';
     }
@@ -1069,6 +1168,9 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
   return (
     <div 
       ref={outerRef}
+      onMouseDown={() => {
+        isMouseDownRef.current = true;
+      }}
       onMouseMove={handleOuterMouseMove}
       onClick={(e) => {
         setActiveChartId(config.id);
