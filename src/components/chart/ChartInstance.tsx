@@ -291,6 +291,12 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
           timeVisible: true,
           secondsVisible: false,
         },
+        handleScroll: {
+          mouseWheel: true,
+          pressedMouseMove: true,
+          horzTouchDrag: true,
+          vertTouchDrag: true,
+        },
       };
 
       // Compute explicit pixel heights for sub-panels (dynamic)
