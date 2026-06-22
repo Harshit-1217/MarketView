@@ -164,7 +164,7 @@ export default function ChartInstance({ config, onOpenIndicators }: ChartInstanc
         canvasRef.current.style.pointerEvents = 'none';
       }
     }
-  }, [activeTool, areDrawingsLocked]);
+  }, [activeTool, areDrawingsLocked, containerSize.w, containerSize.h]);
 
   // Oscillator types that need sub-panels (not overlays)
   const OSCILLATOR_TYPES = ['rsi', 'macd', 'atr', 'stochRsi', 'stochastic', 'cci', 'williamsR', 'obv'];
